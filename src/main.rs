@@ -4,22 +4,19 @@ use std::fs::File;
 use std::io::{stdin, stdout, BufWriter, Write};
 use std::path::Path;
 
+fn f(x: Complex<f64>) -> Complex<f64> {
+    x.powi(4) + 2.0 * x.powi(2) - 1.0
+}
+
+fn g(x: Complex<f64>) -> Complex<f64> {
+    4.0 * x.powi(3) + 4.0 * x.powi(1)
+}
 
 fn newton_func(n: Complex<f64>,  d: u8) -> (u8, u8, u8) {
-    if d == 127 || (n.powi(4) + 2.0 * n.powi(2) - 1.0).norm() < 1e-10 {
-        if (n - Complex{re: 0.0, im: 1.5537739740300374}).norm() < 1e-5 {
-            (127 - d, 0, 0)
-        } else if (n - Complex{re: 0.0, im: -1.5537739740300374}).norm() < 1e-5 {
-            (0, 127 - d, 0)
-        } else if (n - Complex{re: 0.6435942529055827, im: 0.0}).norm() < 1e-5 {
-            (127 - d, 0, 127 - d)
-        } else if (n - Complex{re: -0.6435942529055827, im: 0.0}).norm() < 1e-5 {
-            (0, 127 - d, 127 - d)
-        } else {
-            (127 - d, 127 - d, 127 - d)
-        }
+   if d == 31 || f(n).norm() < 1e-10 {
+        (255 - d * 8, 255 - d * 8, 255 - d * 8)
     } else {
-        newton_func(n - (n.powi(4) + 2.0 * n.powi(2) - 1.0) / (4.0 * n.powi(3) + 4.0 * n.powi(1)), d + 1)
+        newton_func(n - f(n) / g(n), d + 1)
     }
 }
 
