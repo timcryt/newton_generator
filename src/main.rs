@@ -4,12 +4,15 @@ use std::fs::File;
 use std::io::{stdin, stdout, BufWriter, Write};
 use std::path::Path;
 
+
+static polinom: [f64; 5] = [-1.0, 0.0, 2.0, 0.0, 1.0];
+
 fn f(x: Complex<f64>) -> Complex<f64> {
-    x.powi(4) + 2.0 * x.powi(2) - 1.0
+    polinom.iter().enumerate().map(|(i, k)| k * x.powi(i as i32)).sum()
 }
 
 fn g(x: Complex<f64>) -> Complex<f64> {
-    4.0 * x.powi(3) + 4.0 * x.powi(1)
+    polinom.iter().enumerate().skip(0).map(|(i, k)| k * i as f64 * x.powi(i as i32 - 1)).sum()
 }
 
 fn newton_func(n: Complex<f64>,  d: u8) -> (u8, u8, u8) {
