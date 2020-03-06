@@ -128,40 +128,32 @@ fn main() -> Result<(), std::io::Error> {
                 .takes_value(true)
                 .validator(|v| {
                     let mut t = v.split(';');
-                    let (a, b) = (t.next(), t.next());
-                    if a.is_none() || b.is_none() || t.next().is_some() {
-                        Err("Неправильный формат координат".to_string())
-                    } else {
-                        let (mut ta, mut tb) = (a.unwrap().split(','), b.unwrap().split(','));
-                        let (x1, y1, x2, y2) = (ta.next(), ta.next(), tb.next(), tb.next());
-                        if x1.is_none()
-                            || x2.is_none()
-                            || y1.is_none()
-                            || y2.is_none()
-                            || ta.next().is_some()
-                            || tb.next().is_some()
-                        {
-                            Err("Неправильный формат координат".to_string())
-                        } else {
-                            let (x1, y1, x2, y2) = (
-                                x1.unwrap().trim().parse::<f64>(),
-                                y1.unwrap().trim().parse::<f64>(),
-                                x2.unwrap().trim().parse::<f64>(),
-                                y2.unwrap().trim().parse::<f64>(),
-                            );
-                            if x1.is_err() || x2.is_err() || y1.is_err() || y2.is_err() {
-                                Err("Координаты должны быть числами".to_string())
-                            } else {
-                                let (x1, x2, y1, y2) =
-                                    (x1.unwrap(), x2.unwrap(), y1.unwrap(), y2.unwrap());
-                                if x1 >= x2 || y1 >= y2 {
-                                    Err("Конечные координаты должны быть больше начальных"
-                                        .to_string())
-                                } else {
-                                    Ok(())
+                    match (t.next(), t.next(), t.next()) {
+                        (Some(a), Some(b), None) => {
+                            let (mut ta, mut tb) = (a.split(','), b.split(','));
+                            match (ta.next(), ta.next(), ta.next(), tb.next(), tb.next(), tb.next()) {
+                                (Some(x1), Some(y1), None, Some(x2), Some(y2), None) => {
+                                    match (
+                                        x1.trim().parse::<f64>(),
+                                        y1.trim().parse::<f64>(),
+                                        x2.trim().parse::<f64>(),
+                                        y2.trim().parse::<f64>(),
+                                    ) {
+                                        (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) => {
+                                            if x1 >= x2 || y1 >= y2 {
+                                                Err("Конечные координаты должны быть больше начальных"
+                                                    .to_string())
+                                            } else {
+                                                Ok(())
+                                            }
+                                        }
+                                        _ => Err("Координаты должны быть числами".to_string()),
+                                    }
                                 }
+                                _ => Err("Неправильный формат координат".to_string()),
                             }
                         }
+                        _ => Err("Неправильный формат координат".to_string())
                     }
                 }),
         )
