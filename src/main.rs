@@ -120,6 +120,51 @@ fn main() -> Result<(), std::io::Error> {
                     Ok(())
                 }),
         )
+        .arg(
+            Arg::with_name("coord")
+                .short("c")
+                .value_name("X1, Y1; X2, Y2")
+                .help("Устанавливает координаты для отобажения фрактала")
+                .takes_value(true)
+                .validator(|v| {
+                    let mut t = v.split(';');
+                    let (a, b) = (t.next(), t.next());
+                    if a.is_none() || b.is_none() || t.next().is_some() {
+                        Err("Неправильный формат координат".to_string())
+                    } else {
+                        let (mut ta, mut tb) = (a.unwrap().split(','), b.unwrap().split(','));
+                        let (x1, y1, x2, y2) = (ta.next(), ta.next(), tb.next(), tb.next());
+                        if x1.is_none()
+                            || x2.is_none()
+                            || y1.is_none()
+                            || y2.is_none()
+                            || ta.next().is_some()
+                            || tb.next().is_some()
+                        {
+                            Err("Неправильный формат координат".to_string())
+                        } else {
+                            let (x1, y1, x2, y2) = (
+                                x1.unwrap().trim().parse::<f64>(),
+                                y1.unwrap().trim().parse::<f64>(),
+                                x2.unwrap().trim().parse::<f64>(),
+                                y2.unwrap().trim().parse::<f64>(),
+                            );
+                            if x1.is_err() || x2.is_err() || y1.is_err() || y2.is_err() {
+                                Err("Координаты должны быть числами".to_string())
+                            } else {
+                                let (x1, x2, y1, y2) =
+                                    (x1.unwrap(), x2.unwrap(), y1.unwrap(), y2.unwrap());
+                                if x1 >= x2 || y1 >= y2 {
+                                    Err("Конечные координаты должны быть больше начальных"
+                                        .to_string())
+                                } else {
+                                    Ok(())
+                                }
+                            }
+                        }
+                    }
+                }),
+        )
         .get_matches();
 
     let h = matches.value_of("height").unwrap().trim().parse().unwrap();
@@ -138,9 +183,24 @@ fn main() -> Result<(), std::io::Error> {
         .collect::<Vec<_>>();
     polinom.reverse();
 
+    let (start, end) = matches
+        .value_of("coord")
+        .map(|v| {
+            let x = v
+                .split(';')
+                .map(|a| {
+                    a.split(',')
+                        .map(|c| c.trim().parse::<f64>().unwrap())
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            ((x[0][0], x[0][1]), (x[1][0], x[1][1]))
+        })
+        .unwrap_or(((-1.0, -1.0), (1.0, 1.0)));
+
     let t = std::time::SystemTime::now();
 
-    let (w, h, v) = newton((-1.0, -1.0), (1.0, 1.0), &polinom, h);
+    let (w, h, v) = newton(start, end, &polinom, h);
 
     println!("Изображение сгенерировано за {:?}", t.elapsed().unwrap());
 
