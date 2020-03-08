@@ -8,6 +8,7 @@ use std::path::Path;
 
 const PRECISION: f64 = 1e-10;
 const ROOT_ITER: u16 = 256;
+const CONTRAST: f64 = 4.0;
 
 fn f(x: Complex<f64>, polinom: &[f64]) -> Complex<f64> {
     polinom
@@ -26,7 +27,13 @@ fn g(x: Complex<f64>, polinom: &[f64]) -> Complex<f64> {
         .sum()
 }
 
-fn newton_func(n: Complex<f64>, roots: &[Complex<f64>], polinom: &[f64], d: u16) -> (u8, u8, u8) {
+fn newton_func(
+    n: Complex<f64>,
+    roots: &[Complex<f64>],
+    polinom: &[f64],
+    colorize: bool,
+    d: u16,
+) -> (u8, u8, u8) {
     const COLORS_LEN: usize = 7;
     const COLORS: [(u8, u8, u8); COLORS_LEN] = [
         (255, 0, 0),
@@ -39,23 +46,42 @@ fn newton_func(n: Complex<f64>, roots: &[Complex<f64>], polinom: &[f64], d: u16)
     ];
 
     if d == ROOT_ITER || f(n, polinom).norm() < PRECISION {
-        COLORS[match roots
-            .iter()
-            .enumerate()
-            .find(|x| (*x.1 - n).norm() < PRECISION)
-            .unwrap_or((std::usize::MAX, &Complex::default()))
-            .0
-        {
-            std::usize::MAX => COLORS_LEN - 1,
-            x => x % (COLORS_LEN - 1),
-        }]
+        if colorize {
+            COLORS[match roots
+                .iter()
+                .enumerate()
+                .find(|x| (*x.1 - n).norm() < PRECISION)
+                .unwrap_or((std::usize::MAX, &Complex::default()))
+                .0
+            {
+                std::usize::MAX => COLORS_LEN - 1,
+                x => x % (COLORS_LEN - 1),
+            }]
+        } else {
+            let c = 255
+                - (d as f64 / ROOT_ITER as f64 * std::u8::MAX as f64 * CONTRAST)
+                    .floor()
+                    .min(255.0) as u8;
+            (c, c, c)
+        }
     } else {
-        newton_func(n - f(n, polinom) / g(n, polinom), roots, polinom, d + 1)
+        newton_func(
+            n - f(n, polinom) / g(n, polinom),
+            roots,
+            polinom,
+            colorize,
+            d + 1,
+        )
     }
 }
 
-fn find_newton(x: Complex<f64>, roots: &[Complex<f64>], polinom: &[f64]) -> (u8, u8, u8) {
-    newton_func(x, roots, polinom, 0)
+fn find_newton(
+    x: Complex<f64>,
+    roots: &[Complex<f64>],
+    polinom: &[f64],
+    colorize: bool,
+) -> (u8, u8, u8) {
+    newton_func(x, roots, polinom, colorize, 0)
 }
 
 fn sort_float(v: &mut Vec<Complex<f64>>) {
@@ -185,6 +211,7 @@ fn newton(
     (x1, y1): (f64, f64),
     (x2, y2): (f64, f64),
     polinom: &[f64],
+    colorize: bool,
     height: u32,
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width((x1, y1), (x2, y2), height);
@@ -202,6 +229,7 @@ fn newton(
                             complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
                             &roots,
                             polinom,
+                            colorize,
                         );
                         vec![r, g, b]
                     })
@@ -319,6 +347,11 @@ fn main() -> Result<(), std::io::Error> {
                 .takes_value(true)
                 .validator(validate_coord),
         )
+        .arg(
+            Arg::with_name("color")
+                .long("color")
+                .help("Утсанавливливает режим расцветки"),
+        )
         .get_matches();
 
     let h = matches.value_of("height").unwrap().trim().parse().unwrap();
@@ -352,9 +385,11 @@ fn main() -> Result<(), std::io::Error> {
         })
         .unwrap_or(((-1.0, -1.0), (1.0, 1.0)));
 
+    let colorize = matches.is_present("color");
+
     let t = std::time::SystemTime::now();
 
-    let (w, h, v) = newton(start, end, &polinom, h);
+    let (w, h, v) = newton(start, end, &polinom, colorize, h);
 
     println!("Изображение сгенерировано за {:?}", t.elapsed().unwrap());
 
