@@ -1,10 +1,13 @@
 use clap::{App, Arg};
 use num_complex::Complex;
 use rayon::prelude::*;
+use std::cmp::max;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
-use std::cmp::max;
+
+const PRECISION: f64 = 1e-10;
+const ROOT_ITER: u16 = 256;
 
 fn f(x: Complex<f64>, polinom: &[f64]) -> Complex<f64> {
     polinom
@@ -23,19 +26,29 @@ fn g(x: Complex<f64>, polinom: &[f64]) -> Complex<f64> {
         .sum()
 }
 
-fn newton_func(n: Complex<f64>, roots: &[Complex<f64>], polinom: &[f64], d: u8) -> (u8, u8, u8) {
-    let colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 127, 127), (127, 0, 127), (127, 127, 0), (0, 0, 0)];    
-    if d == 255 || f(n, polinom).norm() < 1e-10 {
-        colors[
-            match roots.iter()
-                .enumerate()
-                .find(|x| (*x.1 - n).norm() < 1e-10)
-                .unwrap_or((std::usize::MAX, &Complex::default()))
-                .0 {
-                std::usize::MAX => colors.len() - 1,
-                x => x % (colors.len() - 1),
-            }
-            ]
+fn newton_func(n: Complex<f64>, roots: &[Complex<f64>], polinom: &[f64], d: u16) -> (u8, u8, u8) {
+    const COLORS_LEN: usize = 7;
+    const COLORS: [(u8, u8, u8); COLORS_LEN] = [
+        (255, 0, 0),
+        (0, 255, 0),
+        (0, 0, 255),
+        (0, 127, 127),
+        (127, 0, 127),
+        (127, 127, 0),
+        (0, 0, 0),
+    ];
+
+    if d == ROOT_ITER || f(n, polinom).norm() < PRECISION {
+        COLORS[match roots
+            .iter()
+            .enumerate()
+            .find(|x| (*x.1 - n).norm() < PRECISION)
+            .unwrap_or((std::usize::MAX, &Complex::default()))
+            .0
+        {
+            std::usize::MAX => COLORS_LEN - 1,
+            x => x % (COLORS_LEN - 1),
+        }]
     } else {
         newton_func(n - f(n, polinom) / g(n, polinom), roots, polinom, d + 1)
     }
@@ -46,9 +59,13 @@ fn find_newton(x: Complex<f64>, roots: &[Complex<f64>], polinom: &[f64]) -> (u8,
 }
 
 fn sort_float(v: &mut Vec<Complex<f64>>) {
-    v.sort_by(|a, b|
-        if a.re.partial_cmp(&b.re).unwrap() == std::cmp::Ordering::Equal || (a.re - b.re).abs() < 1e-10 {
-            if a.im.partial_cmp(&b.im).unwrap() == std::cmp::Ordering::Equal || (a.im - b.im).abs() < 1e-10 {
+    v.sort_by(|a, b| {
+        if a.re.partial_cmp(&b.re).unwrap() == std::cmp::Ordering::Equal
+            || (a.re - b.re).abs() < PRECISION
+        {
+            if a.im.partial_cmp(&b.im).unwrap() == std::cmp::Ordering::Equal
+                || (a.im - b.im).abs() < PRECISION
+            {
                 std::cmp::Ordering::Equal
             } else {
                 a.im.partial_cmp(&b.re).unwrap()
@@ -56,13 +73,16 @@ fn sort_float(v: &mut Vec<Complex<f64>>) {
         } else {
             a.re.partial_cmp(&b.im).unwrap()
         }
-
-    );
+    });
 }
 fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
-    v.sort_by(|a, b|
-        if a.im.partial_cmp(&b.im).unwrap() == std::cmp::Ordering::Equal || (a.im - b.im).abs() < 1e-10 {
-            if a.re.partial_cmp(&b.re).unwrap() == std::cmp::Ordering::Equal || (a.re - b.re).abs() < 1e-10 {
+    v.sort_by(|a, b| {
+        if a.im.partial_cmp(&b.im).unwrap() == std::cmp::Ordering::Equal
+            || (a.im - b.im).abs() < PRECISION
+        {
+            if a.re.partial_cmp(&b.re).unwrap() == std::cmp::Ordering::Equal
+                || (a.re - b.re).abs() < PRECISION
+            {
                 std::cmp::Ordering::Equal
             } else {
                 a.re.partial_cmp(&b.re).unwrap()
@@ -70,14 +90,13 @@ fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
         } else {
             a.im.partial_cmp(&b.im).unwrap()
         }
-
-    );
+    });
 }
 
 fn find_root_func(x: Complex<f64>, polinom: &[f64], d: u16) -> Option<Complex<f64>> {
-    if f(x, polinom).norm() < 1e-10 {
+    if f(x, polinom).norm() < PRECISION {
         Some(x)
-    } else if d == 1023 {
+    } else if d == ROOT_ITER {
         None
     } else {
         find_root_func(x - f(x, polinom) / g(x, polinom), polinom, d + 1)
@@ -90,7 +109,7 @@ fn find_root(x: Complex<f64>, polinom: &[f64]) -> Option<Complex<f64>> {
 
 fn uniq(x: &mut Option<Complex<f64>>, n: Complex<f64>) -> Option<Complex<f64>> {
     let r = if let Some(x) = x {
-        if (n - *x).norm() < 1e-3 {
+        if (n - *x).norm() < PRECISION {
             None
         } else {
             Some(n)
@@ -103,44 +122,63 @@ fn uniq(x: &mut Option<Complex<f64>>, n: Complex<f64>) -> Option<Complex<f64>> {
 }
 
 fn uniq_vec(mut v: Vec<Complex<f64>>) -> Vec<Complex<f64>> {
-            sort_float(&mut v);
+    sort_float(&mut v);
+    let mut x = None;
+    v = v
+        .into_iter()
+        .filter_map(|root| uniq(&mut x, root))
+        .collect();
 
-
-            let mut x = None;
-            v = v.into_iter()
-                .filter_map(|root| uniq(&mut x, root))
-                .collect();
-
-
-            sort_float_rev(&mut v);
-
-    
-            x = None;
-            v.into_iter()
-                .filter_map(|root| uniq(&mut x, root))
-                .collect()
+    sort_float_rev(&mut v);
+    x = None;
+    v.into_iter()
+        .filter_map(|root| uniq(&mut x, root))
+        .collect()
 }
 
-fn find_roots((x1, y1): (f64, f64), (x2, y2): (f64, f64), polinom: &[f64], height: u32) -> Vec<Complex<f64>> {
-    let width = ((x2 - x1) / (y2 - y1) * height as f64) as u32;
+fn find_roots(
+    (x1, y1): (f64, f64),
+    (x2, y2): (f64, f64),
+    polinom: &[f64],
+    height: u32,
+) -> Vec<Complex<f64>> {
+    let width = calculate_width((x1, y1), (x2, y2), height);
 
-    let v = (0..height)
-        .into_par_iter()
-        .map(|i| {
-            let v = (0..width)
-                .filter_map(|j| {
-                    let re: f64 = x1 + (x2 - x1) * j as f64 / width as f64;
-                    let im: f64 = y1 + (y2 - y1) * i as f64 / height as f64;
-                    find_root(Complex { re, im }, polinom)
-                })
-                .collect::<Vec<_>>();
-           uniq_vec(v).into_par_iter()
-        })
-        .flatten()
-        .collect::<Vec<_>>();
+    uniq_vec(
+        (0..height)
+            .into_par_iter()
+            .map(|i| {
+                uniq_vec(
+                    (0..width)
+                        .filter_map(|j| {
+                            find_root(
+                                complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
+                                polinom,
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .into_par_iter()
+            })
+            .flatten()
+            .collect::<Vec<_>>(),
+    )
+}
 
-    uniq_vec(v)
+fn complex_by_coord(
+    (i, h): (u32, u32),
+    (j, w): (u32, u32),
+    (x1, y1): (f64, f64),
+    (x2, y2): (f64, f64),
+) -> Complex<f64> {
+    Complex {
+        re: x1 + (x2 - x1) * j as f64 / w as f64,
+        im: y1 + (y2 - y1) * i as f64 / h as f64,
+    }
+}
 
+fn calculate_width((x1, y1): (f64, f64), (x2, y2): (f64, f64), height: u32) -> u32 {
+    max(((x2 - x1) / (y2 - y1) * height as f64) as u32, 1)
 }
 
 fn newton(
@@ -149,8 +187,7 @@ fn newton(
     polinom: &[f64],
     height: u32,
 ) -> (u32, u32, Vec<u8>) {
-    let width = max(((x2 - x1) / (y2 - y1) * height as f64) as u32, 1);
-
+    let width = calculate_width((x1, y1), (x2, y2), height);
     let roots = find_roots((x1, y1), (x2, y2), polinom, max(height / 4, 1));
 
     (
@@ -161,9 +198,11 @@ fn newton(
             .map(|i| {
                 (0..width)
                     .map(|j| {
-                        let re: f64 = x1 + (x2 - x1) * j as f64 / width as f64;
-                        let im: f64 = y1 + (y2 - y1) * i as f64 / height as f64;
-                        let (r, g, b) = find_newton(Complex { re, im }, &roots, polinom);
+                        let (r, g, b) = find_newton(
+                            complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
+                            &roots,
+                            polinom,
+                        );
                         vec![r, g, b]
                     })
                     .flatten()
@@ -188,6 +227,54 @@ fn write_png(path: &str, (w, h): (u32, u32), data: &[u8]) -> Result<(), std::io:
     writer.write_image_data(data)?;
 
     Ok(())
+}
+
+fn validate_polinom(polinom: String) -> Result<(), String> {
+    if polinom
+        .split(' ')
+        .any(|n| n != "" && n.parse::<f64>().is_err())
+    {
+        Err("Многочлен должен состоять из чисел".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_coord(coord: String) -> Result<(), String> {
+    let mut coord_pair = coord.split(';');
+    match (coord_pair.next(), coord_pair.next(), coord_pair.next()) {
+        (Some(a), Some(b), None) => {
+            let (mut coorda, mut coordb) = (a.split(','), b.split(','));
+            match (
+                coorda.next(),
+                coorda.next(),
+                coorda.next(),
+                coordb.next(),
+                coordb.next(),
+                coordb.next(),
+            ) {
+                (Some(x1), Some(y1), None, Some(x2), Some(y2), None) => {
+                    match (
+                        x1.trim().parse::<f64>(),
+                        y1.trim().parse::<f64>(),
+                        x2.trim().parse::<f64>(),
+                        y2.trim().parse::<f64>(),
+                    ) {
+                        (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) => {
+                            if x1 >= x2 || y1 >= y2 {
+                                Err("Конечные координаты должны быть больше начальных".to_string())
+                            } else {
+                                Ok(())
+                            }
+                        }
+                        _ => Err("Координаты должны быть числами".to_string()),
+                    }
+                }
+                _ => Err("Неправильный формат координат".to_string()),
+            }
+        }
+        _ => Err("Неправильный формат координат".to_string()),
+    }
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -222,13 +309,7 @@ fn main() -> Result<(), std::io::Error> {
                 .help("Устанавливает многочлен, по которуму строится фрактал")
                 .required(true)
                 .takes_value(true)
-                .validator(|v| {
-                    if v.split(' ').find(|n| *n != "" && n.parse::<f64>().is_err()).is_some() {
-                            Err("Многочлен должен состоять из чисел".to_string())
-                    } else {
-                        Ok(())
-                    }
-                }),
+                .validator(validate_polinom),
         )
         .arg(
             Arg::with_name("coord")
@@ -236,36 +317,7 @@ fn main() -> Result<(), std::io::Error> {
                 .value_name("X1, Y1; X2, Y2")
                 .help("Устанавливает координаты для отобажения фрактала")
                 .takes_value(true)
-                .validator(|v| {
-                    let mut t = v.split(';');
-                    match (t.next(), t.next(), t.next()) {
-                        (Some(a), Some(b), None) => {
-                            let (mut ta, mut tb) = (a.split(','), b.split(','));
-                            match (ta.next(), ta.next(), ta.next(), tb.next(), tb.next(), tb.next()) {
-                                (Some(x1), Some(y1), None, Some(x2), Some(y2), None) => {
-                                    match (
-                                        x1.trim().parse::<f64>(),
-                                        y1.trim().parse::<f64>(),
-                                        x2.trim().parse::<f64>(),
-                                        y2.trim().parse::<f64>(),
-                                    ) {
-                                        (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) => {
-                                            if x1 >= x2 || y1 >= y2 {
-                                                Err("Конечные координаты должны быть больше начальных"
-                                                    .to_string())
-                                            } else {
-                                                Ok(())
-                                            }
-                                        }
-                                        _ => Err("Координаты должны быть числами".to_string()),
-                                    }
-                                }
-                                _ => Err("Неправильный формат координат".to_string()),
-                            }
-                        }
-                        _ => Err("Неправильный формат координат".to_string())
-                    }
-                }),
+                .validator(validate_coord),
         )
         .get_matches();
 
