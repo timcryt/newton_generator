@@ -4,6 +4,7 @@ use rayon::prelude::*;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
+use std::cmp::max;
 
 fn f(x: Complex<f64>, polinom: &[f64]) -> Complex<f64> {
     polinom
@@ -120,8 +121,7 @@ fn uniq_vec(mut v: Vec<Complex<f64>>) -> Vec<Complex<f64>> {
                 .collect()
 }
 
-fn find_roots((x1, y1): (f64, f64), (x2, y2): (f64, f64), polinom: &[f64]) -> Vec<Complex<f64>> {
-    let height = 10;
+fn find_roots((x1, y1): (f64, f64), (x2, y2): (f64, f64), polinom: &[f64], height: u32) -> Vec<Complex<f64>> {
     let width = ((x2 - x1) / (y2 - y1) * height as f64) as u32;
 
     let v = (0..height)
@@ -149,9 +149,9 @@ fn newton(
     polinom: &[f64],
     height: u32,
 ) -> (u32, u32, Vec<u8>) {
-    let width = ((x2 - x1) / (y2 - y1) * height as f64) as u32;
+    let width = max(((x2 - x1) / (y2 - y1) * height as f64) as u32, 1);
 
-    let roots = find_roots((x1, y1), (x2, y2), polinom);
+    let roots = find_roots((x1, y1), (x2, y2), polinom, max(height / 4, 1));
 
     (
         width,
