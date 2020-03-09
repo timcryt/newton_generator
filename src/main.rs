@@ -7,6 +7,7 @@ use std::io::BufWriter;
 use std::path::Path;
 
 const PRECISION: f64 = 1e-10;
+const ROOT_PRECISION: f64 = 1e-5;
 const ROOT_ITER: u16 = 256;
 const CONTRAST: f64 = 4.0;
 
@@ -50,7 +51,7 @@ fn newton_func(
             COLORS[match roots
                 .iter()
                 .enumerate()
-                .find(|x| (*x.1 - n).norm() < PRECISION)
+                .find(|x| (*x.1 - n).norm() < ROOT_PRECISION)
                 .unwrap_or((std::usize::MAX, &Complex::default()))
                 .0
             {
@@ -87,10 +88,10 @@ fn find_newton(
 fn sort_float(v: &mut Vec<Complex<f64>>) {
     v.sort_by(|a, b| {
         if a.re.partial_cmp(&b.re).unwrap() == std::cmp::Ordering::Equal
-            || (a.re - b.re).abs() < PRECISION
+            || (a.re - b.re).abs() < ROOT_PRECISION
         {
             if a.im.partial_cmp(&b.im).unwrap() == std::cmp::Ordering::Equal
-                || (a.im - b.im).abs() < PRECISION
+                || (a.im - b.im).abs() < ROOT_PRECISION
             {
                 std::cmp::Ordering::Equal
             } else {
@@ -104,10 +105,10 @@ fn sort_float(v: &mut Vec<Complex<f64>>) {
 fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
     v.sort_by(|a, b| {
         if a.im.partial_cmp(&b.im).unwrap() == std::cmp::Ordering::Equal
-            || (a.im - b.im).abs() < PRECISION
+            || (a.im - b.im).abs() < ROOT_PRECISION
         {
             if a.re.partial_cmp(&b.re).unwrap() == std::cmp::Ordering::Equal
-                || (a.re - b.re).abs() < PRECISION
+                || (a.re - b.re).abs() < ROOT_PRECISION
             {
                 std::cmp::Ordering::Equal
             } else {
@@ -135,7 +136,7 @@ fn find_root(x: Complex<f64>, polinom: &[f64]) -> Option<Complex<f64>> {
 
 fn uniq(x: &mut Option<Complex<f64>>, n: Complex<f64>) -> Option<Complex<f64>> {
     let r = if let Some(x) = x {
-        if (n - *x).norm() < PRECISION {
+        if (n - *x).norm() < ROOT_PRECISION {
             None
         } else {
             Some(n)
