@@ -30,7 +30,7 @@ fn g(x: Complex<f64>, polinom: &[f64]) -> Complex<f64> {
 
 fn newton_func(
     n: Complex<f64>,
-    roots: &[Complex<f64>],
+    roots: &Option<Vec<Complex<f64>>>,
     polinom: &[f64],
     colorize: bool,
     d: u16,
@@ -49,6 +49,8 @@ fn newton_func(
     if d == ROOT_ITER || f(n, polinom).norm() < PRECISION {
         if colorize {
             COLORS[match roots
+                .as_ref()
+                .unwrap()
                 .iter()
                 .enumerate()
                 .find(|x| (*x.1 - n).norm() < ROOT_PRECISION)
@@ -78,7 +80,7 @@ fn newton_func(
 
 fn find_newton(
     x: Complex<f64>,
-    roots: &[Complex<f64>],
+    roots: &Option<Vec<Complex<f64>>>,
     polinom: &[f64],
     colorize: bool,
 ) -> (u8, u8, u8) {
@@ -216,7 +218,11 @@ fn newton(
     height: u32,
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width((x1, y1), (x2, y2), height);
-    let roots = find_roots((x1, y1), (x2, y2), polinom, max(height / 4, 1));
+    let roots = if colorize {
+        Some(find_roots((x1, y1), (x2, y2), polinom, max(height / 4, 1)))
+    } else {
+        None
+    };
 
     (
         width,
@@ -265,7 +271,11 @@ fn validate_polinom(polinom: String) -> Result<(), String> {
     {
         Err("Многочлен должен состоять из чисел".to_string())
     } else {
-        Ok(())
+        if polinom.split(' ').filter(|&n| n != "").count() <= 1 {
+            Err("Многочлен должен иметь хотя бы первую степень".to_string())
+        } else {
+            Ok(())
+        }
     }
 }
 
