@@ -28,12 +28,11 @@ fn g(x: Complex<f64>, polinom: &[f64]) -> Complex<f64> {
         .sum()
 }
 
-fn newton_func(
-    n: Complex<f64>,
+fn find_newton(
+    x: Complex<f64>,
     roots: &Option<Vec<Complex<f64>>>,
     polinom: &[f64],
     colorize: bool,
-    d: u16,
 ) -> (u8, u8, u8) {
     const COLORS_LEN: usize = 7;
     const COLORS: [(u8, u8, u8); COLORS_LEN] = [
@@ -46,45 +45,33 @@ fn newton_func(
         (0, 0, 0),
     ];
 
-    if d == ROOT_ITER || f(n, polinom).norm() < PRECISION {
-        if colorize {
-            COLORS[match roots
-                .as_ref()
-                .unwrap()
-                .iter()
-                .enumerate()
-                .find(|x| (*x.1 - n).norm() < ROOT_PRECISION)
-                .unwrap_or((std::usize::MAX, &Complex::default()))
-                .0
-            {
-                std::usize::MAX => COLORS_LEN - 1,
-                x => x % (COLORS_LEN - 1),
-            }]
-        } else {
-            let c = 255
-                - (d as f64 / ROOT_ITER as f64 * std::u8::MAX as f64 * CONTRAST)
-                    .floor()
-                    .min(255.0) as u8;
-            (c, c, c)
-        }
-    } else {
-        newton_func(
-            n - f(n, polinom) / g(n, polinom),
-            roots,
-            polinom,
-            colorize,
-            d + 1,
-        )
-    }
-}
+    let (root, d) = find_root(x, polinom);
 
-fn find_newton(
-    x: Complex<f64>,
-    roots: &Option<Vec<Complex<f64>>>,
-    polinom: &[f64],
-    colorize: bool,
-) -> (u8, u8, u8) {
-    newton_func(x, roots, polinom, colorize, 0)
+    match root {
+        None => (0, 0, 0),
+        Some(root) => {
+            if colorize {
+                COLORS[match roots
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .enumerate()
+                    .find(|x| (*x.1 - root).norm() < ROOT_PRECISION)
+                    .unwrap_or((std::usize::MAX, &Complex::default()))
+                    .0
+                {
+                    std::usize::MAX => COLORS_LEN - 1,
+                    x => x % (COLORS_LEN - 1),
+                }]
+            } else {
+                let c = 255
+                    - (d as f64 / ROOT_ITER as f64 * std::u8::MAX as f64 * CONTRAST)
+                        .floor()
+                        .min(255.0) as u8;
+                (c, c, c)
+            }
+        }
+    }
 }
 
 fn sort_float(v: &mut Vec<Complex<f64>>) {
@@ -122,17 +109,17 @@ fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
     });
 }
 
-fn find_root_func(x: Complex<f64>, polinom: &[f64], d: u16) -> Option<Complex<f64>> {
+fn find_root_func(x: Complex<f64>, polinom: &[f64], d: u16) -> (Option<Complex<f64>>, u16) {
     if f(x, polinom).norm() < PRECISION {
-        Some(x)
+        (Some(x), d)
     } else if d == ROOT_ITER {
-        None
+        (None, d)
     } else {
         find_root_func(x - f(x, polinom) / g(x, polinom), polinom, d + 1)
     }
 }
 
-fn find_root(x: Complex<f64>, polinom: &[f64]) -> Option<Complex<f64>> {
+fn find_root(x: Complex<f64>, polinom: &[f64]) -> (Option<Complex<f64>>, u16) {
     find_root_func(x, polinom, 0)
 }
 
@@ -184,6 +171,7 @@ fn find_roots(
                                 complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
                                 polinom,
                             )
+                            .0
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -270,12 +258,10 @@ fn validate_polinom(polinom: String) -> Result<(), String> {
         .any(|n| n != "" && n.parse::<f64>().is_err())
     {
         Err("Многочлен должен состоять из чисел".to_string())
+    } else if polinom.split(' ').filter(|&n| n != "").count() <= 1 {
+        Err("Многочлен должен иметь хотя бы первую степень".to_string())
     } else {
-        if polinom.split(' ').filter(|&n| n != "").count() <= 1 {
-            Err("Многочлен должен иметь хотя бы первую степень".to_string())
-        } else {
-            Ok(())
-        }
+        Ok(())
     }
 }
 
