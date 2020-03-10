@@ -33,25 +33,15 @@ fn find_newton(
     roots: &Option<Vec<Complex<f64>>>,
     polinom: &[f64],
     colorize: bool,
+    palette: &[(u8, u8, u8)],
 ) -> (u8, u8, u8) {
-    const COLORS_LEN: usize = 7;
-    const COLORS: [(u8, u8, u8); COLORS_LEN] = [
-        (255, 0, 0),
-        (0, 255, 0),
-        (0, 0, 255),
-        (0, 127, 127),
-        (127, 0, 127),
-        (127, 127, 0),
-        (0, 0, 0),
-    ];
-
     let (root, d) = find_root(x, polinom);
 
     match root {
         None => (0, 0, 0),
         Some(root) => {
             if colorize {
-                COLORS[match roots
+                palette[match roots
                     .as_ref()
                     .unwrap()
                     .iter()
@@ -60,8 +50,8 @@ fn find_newton(
                     .unwrap_or((std::usize::MAX, &Complex::default()))
                     .0
                 {
-                    std::usize::MAX => COLORS_LEN - 1,
-                    x => x % (COLORS_LEN - 1),
+                    std::usize::MAX => palette.len() - 1,
+                    x => x % (palette.len() - 1),
                 }]
             } else {
                 let c = 255
@@ -91,6 +81,7 @@ fn sort_float(v: &mut Vec<Complex<f64>>) {
         }
     });
 }
+
 fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
     v.sort_by(|a, b| {
         if a.im.partial_cmp(&b.im).unwrap() == std::cmp::Ordering::Equal
@@ -203,6 +194,7 @@ fn newton(
     (x2, y2): (f64, f64),
     polinom: &[f64],
     colorize: bool,
+    palette: &[(u8, u8, u8)],
     height: u32,
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width((x1, y1), (x2, y2), height);
@@ -225,6 +217,7 @@ fn newton(
                             &roots,
                             polinom,
                             colorize,
+                            palette,
                         );
                         vec![r, g, b]
                     })
@@ -302,6 +295,31 @@ fn validate_coord(coord: String) -> Result<(), String> {
     }
 }
 
+fn validate_color(color: &str) -> Result<(), String> {
+    let mut rgb = color.split(',');
+    match (rgb.next(), rgb.next(), rgb.next(), rgb.next()) {
+        (Some(r), Some(g), Some(b), None) => {
+            if r.trim().parse::<u8>().is_ok()
+                && g.trim().parse::<u8>().is_ok()
+                && b.trim().parse::<u8>().is_ok()
+            {
+                Ok(())
+            } else {
+                Err("Параметры цвета должны быть целыми от 0 до 255".to_string())
+            }
+        }
+        _ => Err("Неправльный формат цвета".to_string()),
+    }
+}
+
+fn validate_palette(palette: String) -> Result<(), String> {
+    palette
+        .split(';')
+        .map(validate_color)
+        .find(|res| res.is_err())
+        .unwrap_or(Ok(()))
+}
+
 fn main() -> Result<(), std::io::Error> {
     let matches = App::new("Фракталы Ньютона")
         .version("0.1")
@@ -349,6 +367,15 @@ fn main() -> Result<(), std::io::Error> {
                 .long("color")
                 .help("Утсанавливливает режим расцветки"),
         )
+        .arg(
+            Arg::with_name("palette")
+                .long("palette")
+                .value_name("R, G, B [; R, G, B [...]]")
+                .help("Устанавливает палитру в цветном режиме")
+                .requires("color")
+                .takes_value(true)
+                .validator(validate_palette),
+        )
         .get_matches();
 
     let h = matches.value_of("height").unwrap().trim().parse().unwrap();
@@ -383,10 +410,33 @@ fn main() -> Result<(), std::io::Error> {
         .unwrap_or(((-1.0, -1.0), (1.0, 1.0)));
 
     let colorize = matches.is_present("color");
+    let palette = matches
+        .value_of("palette")
+        .map(|p| {
+            p.split(';')
+                .map(|c| {
+                    let rgb = c
+                        .split(',')
+                        .map(|v| v.trim().parse::<u8>().unwrap())
+                        .collect::<Vec<_>>();
+                    (rgb[0], rgb[1], rgb[2])
+                })
+                .chain(vec![(0, 0, 0)].into_iter())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| vec![
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (0, 255, 255),
+            (255, 0, 255),
+            (255, 255, 0),
+            (0, 0, 0),
+        ]);
 
     let t = std::time::SystemTime::now();
 
-    let (w, h, v) = newton(start, end, &polinom, colorize, h);
+    let (w, h, v) = newton(start, end, &polinom, colorize, &palette, h);
 
     println!("Изображение сгенерировано за {:?}", t.elapsed().unwrap());
 
