@@ -320,6 +320,66 @@ fn validate_palette(palette: String) -> Result<(), String> {
         .unwrap_or(Ok(()))
 }
 
+fn get_polinom(matches: &clap::ArgMatches) -> Vec<f64> {
+    matches
+        .value_of("polinom")
+        .unwrap()
+        .split(' ')
+        .filter_map(|x| {
+            if x == "" {
+                None
+            } else {
+                Some(x.trim().parse::<f64>().unwrap())
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
+fn get_coord(matches: &clap::ArgMatches) -> ((f64, f64), (f64, f64)) {
+    matches
+        .value_of("coord")
+        .map(|v| {
+            let x = v
+                .split(';')
+                .map(|a| {
+                    a.split(',')
+                        .map(|c| c.trim().parse::<f64>().unwrap())
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            ((x[0][0], x[0][1]), (x[1][0], x[1][1]))
+        })
+        .unwrap_or(((-1.0, -1.0), (1.0, 1.0)))
+}
+
+fn get_palette(matches: &clap::ArgMatches) -> Vec<(u8, u8, u8)> {
+    matches
+        .value_of("palette")
+        .map(|p| {
+            p.split(';')
+                .map(|c| {
+                    let rgb = c
+                        .split(',')
+                        .map(|v| v.trim().parse::<u8>().unwrap())
+                        .collect::<Vec<_>>();
+                    (rgb[0], rgb[1], rgb[2])
+                })
+                .chain(vec![(0, 0, 0)].into_iter())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| {
+            vec![
+                (255, 0, 0),
+                (0, 255, 0),
+                (0, 0, 255),
+                (0, 255, 255),
+                (255, 0, 255),
+                (255, 255, 0),
+                (0, 0, 0),
+            ]
+        })
+}
+
 fn main() -> Result<(), std::io::Error> {
     let matches = App::new("Фракталы Ньютона")
         .version("0.1")
@@ -380,59 +440,13 @@ fn main() -> Result<(), std::io::Error> {
 
     let h = matches.value_of("height").unwrap().trim().parse().unwrap();
     let path = matches.value_of("output").unwrap();
-    let mut polinom = matches
-        .value_of("polinom")
-        .unwrap()
-        .split(' ')
-        .filter_map(|x| {
-            if x == "" {
-                None
-            } else {
-                Some(x.trim().parse::<f64>().unwrap())
-            }
-        })
-        .collect::<Vec<_>>();
+    let mut polinom = get_polinom(&matches);
     polinom.reverse();
 
-    let (start, end) = matches
-        .value_of("coord")
-        .map(|v| {
-            let x = v
-                .split(';')
-                .map(|a| {
-                    a.split(',')
-                        .map(|c| c.trim().parse::<f64>().unwrap())
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
-            ((x[0][0], x[0][1]), (x[1][0], x[1][1]))
-        })
-        .unwrap_or(((-1.0, -1.0), (1.0, 1.0)));
+    let (start, end) = get_coord(&matches);
 
     let colorize = matches.is_present("color");
-    let palette = matches
-        .value_of("palette")
-        .map(|p| {
-            p.split(';')
-                .map(|c| {
-                    let rgb = c
-                        .split(',')
-                        .map(|v| v.trim().parse::<u8>().unwrap())
-                        .collect::<Vec<_>>();
-                    (rgb[0], rgb[1], rgb[2])
-                })
-                .chain(vec![(0, 0, 0)].into_iter())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_else(|| vec![
-            (255, 0, 0),
-            (0, 255, 0),
-            (0, 0, 255),
-            (0, 255, 255),
-            (255, 0, 255),
-            (255, 255, 0),
-            (0, 0, 0),
-        ]);
+    let palette = get_palette(&matches);
 
     let t = std::time::SystemTime::now();
 
