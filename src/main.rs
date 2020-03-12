@@ -21,17 +21,16 @@ enum Func {
 
 impl Func {
     fn from_polinom(polinom: &[f64]) -> Func {
-        let mut f = Func::Num(0.0);
-        for x in polinom.iter().rev() {
-            f = f * Func::Arg + *x
-        }
-        f
+        polinom
+            .iter()
+            .rev()
+            .fold(Func::Num(0.0), |f, x| f * Func::Arg + *x)
     }
 
     fn calc(&self, x: Complex<f64>) -> Complex<f64> {
         match self {
             Func::Arg => x,
-            Func::Num(n) => Complex{re: *n, im: 0.0},
+            Func::Num(n) => Complex { re: *n, im: 0.0 },
             Func::Add(a, b) => a.calc(x) + b.calc(x),
             Func::Mul(a, b) => a.calc(x) * b.calc(x),
         }
@@ -51,8 +50,16 @@ impl std::ops::Add<Func> for Func {
     type Output = Func;
 
     fn add(self, other: Func) -> Func {
-
-            Func::Add(Box::new(self), Box::new(other))
+        if let Func::Num(n) = self {
+            if n == 0.0 {
+                return other;
+            }
+        } else if let Func::Num(n) = other {
+            if n == 0.0 {
+                return self;
+            }
+        }
+        Func::Add(Box::new(self), Box::new(other))
     }
 }
 
@@ -60,7 +67,7 @@ impl std::ops::Add<f64> for Func {
     type Output = Func;
 
     fn add(self, other: f64) -> Func {
-        Func::Add(Box::new(self), Box::new(Func::Num(other)))
+        self + Func::Num(other)
     }
 }
 
@@ -68,7 +75,20 @@ impl std::ops::Mul<Func> for Func {
     type Output = Func;
 
     fn mul(self, other: Func) -> Func {
-            Func::Mul(Box::new(self), Box::new(other))
+        if let Func::Num(n) = self {
+            if n == 0.0 {
+                return Func::Num(0.0);
+            } else if n == 1.0 {
+                return other;
+            }
+        } else if let Func::Num(n) = other {
+            if n == 0.0 {
+                return Func::Num(0.0);
+            } else if n == 1.0 {
+                return self;
+            }
+        }
+        Func::Mul(Box::new(self), Box::new(other))
     }
 }
 
@@ -76,11 +96,9 @@ impl std::ops::Mul<f64> for Func {
     type Output = Func;
 
     fn mul(self, other: f64) -> Func {
-        Func::Mul(Box::new(self), Box::new(Func::Num(other)))
+        self * Func::Num(other)
     }
 }
-
-
 
 fn find_newton(
     x: Complex<f64>,
@@ -91,7 +109,6 @@ fn find_newton(
     palette: &[(u8, u8, u8)],
 ) -> (u8, u8, u8) {
     let (root, d) = find_root(x, f, g);
-
 
     match root {
         None => (0, 0, 0),
