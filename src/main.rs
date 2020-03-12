@@ -11,31 +11,87 @@ const ROOT_PRECISION: f64 = 1e-5;
 const ROOT_ITER: u16 = 256;
 const CONTRAST: f64 = 4.0;
 
-fn f(x: Complex<f64>, polinom: &[f64]) -> Complex<f64> {
-    polinom
-        .iter()
-        .enumerate()
-        .map(|(i, k)| k * x.powi(i as i32))
-        .sum()
+#[derive(Debug, Clone)]
+enum Func {
+    Arg,
+    Num(f64),
+    Add(Box<Func>, Box<Func>),
+    Mul(Box<Func>, Box<Func>),
 }
 
-fn g(x: Complex<f64>, polinom: &[f64]) -> Complex<f64> {
-    polinom
-        .iter()
-        .enumerate()
-        .skip(0)
-        .map(|(i, k)| k * i as f64 * x.powi(i as i32 - 1))
-        .sum()
+impl Func {
+    fn from_polinom(polinom: &[f64]) -> Func {
+        let mut f = Func::Num(0.0);
+        for x in polinom.iter().rev() {
+            f = f * Func::Arg + *x
+        }
+        f
+    }
+
+    fn calc(&self, x: Complex<f64>) -> Complex<f64> {
+        match self {
+            Func::Arg => x,
+            Func::Num(n) => Complex{re: *n, im: 0.0},
+            Func::Add(a, b) => a.calc(x) + b.calc(x),
+            Func::Mul(a, b) => a.calc(x) * b.calc(x),
+        }
+    }
+
+    fn diff(self) -> Func {
+        match self {
+            Func::Arg => Func::Num(1.0),
+            Func::Num(_) => Func::Num(0.0),
+            Func::Add(a, b) => a.diff() + b.diff(),
+            Func::Mul(a, b) => *a.clone() * b.clone().diff() + a.diff() * *b,
+        }
+    }
 }
+
+impl std::ops::Add<Func> for Func {
+    type Output = Func;
+
+    fn add(self, other: Func) -> Func {
+
+            Func::Add(Box::new(self), Box::new(other))
+    }
+}
+
+impl std::ops::Add<f64> for Func {
+    type Output = Func;
+
+    fn add(self, other: f64) -> Func {
+        Func::Add(Box::new(self), Box::new(Func::Num(other)))
+    }
+}
+
+impl std::ops::Mul<Func> for Func {
+    type Output = Func;
+
+    fn mul(self, other: Func) -> Func {
+            Func::Mul(Box::new(self), Box::new(other))
+    }
+}
+
+impl std::ops::Mul<f64> for Func {
+    type Output = Func;
+
+    fn mul(self, other: f64) -> Func {
+        Func::Mul(Box::new(self), Box::new(Func::Num(other)))
+    }
+}
+
+
 
 fn find_newton(
     x: Complex<f64>,
     roots: &Option<Vec<Complex<f64>>>,
-    polinom: &[f64],
+    f: &Func,
+    g: &Func,
     colorize: bool,
     palette: &[(u8, u8, u8)],
 ) -> (u8, u8, u8) {
-    let (root, d) = find_root(x, polinom);
+    let (root, d) = find_root(x, f, g);
+
 
     match root {
         None => (0, 0, 0),
@@ -100,18 +156,18 @@ fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
     });
 }
 
-fn find_root_func(x: Complex<f64>, polinom: &[f64], d: u16) -> (Option<Complex<f64>>, u16) {
-    if f(x, polinom).norm() < PRECISION {
+fn find_root_func(x: Complex<f64>, f: &Func, g: &Func, d: u16) -> (Option<Complex<f64>>, u16) {
+    if f.calc(x).norm() < PRECISION {
         (Some(x), d)
     } else if d == ROOT_ITER {
         (None, d)
     } else {
-        find_root_func(x - f(x, polinom) / g(x, polinom), polinom, d + 1)
+        find_root_func(x - f.calc(x) / g.calc(x), f, g, d + 1)
     }
 }
 
-fn find_root(x: Complex<f64>, polinom: &[f64]) -> (Option<Complex<f64>>, u16) {
-    find_root_func(x, polinom, 0)
+fn find_root(x: Complex<f64>, f: &Func, g: &Func) -> (Option<Complex<f64>>, u16) {
+    find_root_func(x, f, g, 0)
 }
 
 fn uniq(x: &mut Option<Complex<f64>>, n: Complex<f64>) -> Option<Complex<f64>> {
@@ -146,7 +202,8 @@ fn uniq_vec(mut v: Vec<Complex<f64>>) -> Vec<Complex<f64>> {
 fn find_roots(
     (x1, y1): (f64, f64),
     (x2, y2): (f64, f64),
-    polinom: &[f64],
+    f: &Func,
+    g: &Func,
     height: u32,
 ) -> Vec<Complex<f64>> {
     let width = calculate_width((x1, y1), (x2, y2), height);
@@ -160,7 +217,8 @@ fn find_roots(
                         .filter_map(|j| {
                             find_root(
                                 complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
-                                polinom,
+                                f,
+                                g,
                             )
                             .0
                         })
@@ -192,14 +250,15 @@ fn calculate_width((x1, y1): (f64, f64), (x2, y2): (f64, f64), height: u32) -> u
 fn newton(
     (x1, y1): (f64, f64),
     (x2, y2): (f64, f64),
-    polinom: &[f64],
+    f: &Func,
+    g: &Func,
     colorize: bool,
     palette: &[(u8, u8, u8)],
     height: u32,
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width((x1, y1), (x2, y2), height);
     let roots = if colorize {
-        Some(find_roots((x1, y1), (x2, y2), polinom, max(height / 4, 1)))
+        Some(find_roots((x1, y1), (x2, y2), f, g, max(height / 4, 1)))
     } else {
         None
     };
@@ -215,7 +274,8 @@ fn newton(
                         let (r, g, b) = find_newton(
                             complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
                             &roots,
-                            polinom,
+                            f,
+                            g,
                             colorize,
                             palette,
                         );
@@ -450,7 +510,10 @@ fn main() -> Result<(), std::io::Error> {
 
     let t = std::time::SystemTime::now();
 
-    let (w, h, v) = newton(start, end, &polinom, colorize, &palette, h);
+    let f = Func::from_polinom(&polinom);
+    let g = f.clone().diff();
+
+    let (w, h, v) = newton(start, end, &f, &g, colorize, &palette, h);
 
     println!("Изображение сгенерировано за {:?}", t.elapsed().unwrap());
 
