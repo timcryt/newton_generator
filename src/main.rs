@@ -17,6 +17,7 @@ enum Func {
     Num(f64),
     Add(Box<Func>, Box<Func>),
     Mul(Box<Func>, Box<Func>),
+    Div(Box<Func>, Box<Func>),
 }
 
 impl Func {
@@ -33,6 +34,7 @@ impl Func {
             Func::Num(n) => Complex { re: *n, im: 0.0 },
             Func::Add(a, b) => a.calc(x) + b.calc(x),
             Func::Mul(a, b) => a.calc(x) * b.calc(x),
+            Func::Div(a, b) => a.calc(x) / b.calc(x),
         }
     }
 
@@ -42,6 +44,10 @@ impl Func {
             Func::Num(_) => Func::Num(0.0),
             Func::Add(a, b) => a.diff() + b.diff(),
             Func::Mul(a, b) => *a.clone() * b.clone().diff() + a.diff() * *b,
+            Func::Div(a, b) => {
+                (a.clone().diff() * *b.clone() + a.diff() * b.clone().diff() * -1.0)
+                    / (*b.clone() * *b)
+            }
         }
     }
 }
@@ -97,6 +103,39 @@ impl std::ops::Mul<f64> for Func {
 
     fn mul(self, other: f64) -> Func {
         self * Func::Num(other)
+    }
+}
+
+impl std::ops::Div<Func> for Func {
+    type Output = Func;
+
+    fn div(self, other: Func) -> Func {
+        if let Func::Num(n) = self {
+            if n == 0.0 {
+                return Func::Num(0.0);
+            }
+        } else if let Func::Num(n) = other {
+            if n == 1.0 {
+                return self;
+            }
+        }
+        Func::Div(Box::new(self), Box::new(other))
+    }
+}
+
+impl std::ops::Div<f64> for Func {
+    type Output = Func;
+
+    fn div(self, other: f64) -> Func {
+        self / Func::Num(other)
+    }
+}
+
+impl std::ops::Div<Func> for f64 {
+    type Output = Func;
+
+    fn div(self, other: Func) -> Func {
+        Func::Num(self) / other
     }
 }
 
@@ -397,10 +436,10 @@ fn validate_palette(palette: String) -> Result<(), String> {
         .unwrap_or(Ok(()))
 }
 
-fn get_polinom(matches: &clap::ArgMatches) -> Vec<f64> {
+fn get_polinom(matches: &clap::ArgMatches, name: &str) -> Vec<f64> {
     matches
-        .value_of("polinom")
-        .unwrap()
+        .value_of(name)
+        .unwrap_or("1.0")
         .split(' ')
         .filter_map(|x| {
             if x == "" {
@@ -486,8 +525,16 @@ fn main() -> Result<(), std::io::Error> {
             Arg::with_name("polinom")
                 .short("p")
                 .value_name("POLINOM")
-                .help("Устанавливает многочлен, по которуму строится фрактал")
+                .help("Устанавливает числитель функции, по которой строится фрактал")
                 .required(true)
+                .takes_value(true)
+                .validator(validate_polinom),
+        )
+        .arg(
+            Arg::with_name("fraction")
+                .short("f")
+                .value_name("FRACTION")
+                .help("Устанавливает знаменатель функции, по которой строится фрактал")
                 .takes_value(true)
                 .validator(validate_polinom),
         )
@@ -517,8 +564,8 @@ fn main() -> Result<(), std::io::Error> {
 
     let h = matches.value_of("height").unwrap().trim().parse().unwrap();
     let path = matches.value_of("output").unwrap();
-    let mut polinom = get_polinom(&matches);
-    polinom.reverse();
+    let polinom = get_polinom(&matches, "polinom");
+    let fraction = get_polinom(&matches, "fraction");
 
     let (start, end) = get_coord(&matches);
 
@@ -527,7 +574,7 @@ fn main() -> Result<(), std::io::Error> {
 
     let t = std::time::SystemTime::now();
 
-    let f = Func::from_polinom(&polinom);
+    let f = Func::from_polinom(&polinom) / Func::from_polinom(&fraction);
     let g = f.clone().diff();
 
     let (w, h, v) = newton(start, end, &f, &g, colorize, &palette, h);
