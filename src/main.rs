@@ -45,7 +45,7 @@ impl Func {
             Func::Add(a, b) => a.diff() + b.diff(),
             Func::Mul(a, b) => *a.clone() * b.clone().diff() + a.diff() * *b,
             Func::Div(a, b) => {
-                (a.clone().diff() * *b.clone() + a.diff() * b.clone().diff() * -1.0)
+                (a.clone().diff() * *b.clone() + *a * b.clone().diff() * -1.0)
                     / (*b.clone() * *b)
             }
         }
