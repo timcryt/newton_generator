@@ -45,8 +45,7 @@ impl Func {
             Func::Add(a, b) => a.diff() + b.diff(),
             Func::Mul(a, b) => *a.clone() * b.clone().diff() + a.diff() * *b,
             Func::Div(a, b) => {
-                (a.clone().diff() * *b.clone() + *a * b.clone().diff() * -1.0)
-                    / (*b.clone() * *b)
+                (a.clone().diff() * *b.clone() + *a * b.clone().diff() * -1.0) / (*b.clone() * *b)
             }
         }
     }
@@ -436,6 +435,26 @@ fn validate_palette(palette: String) -> Result<(), String> {
         .unwrap_or(Ok(()))
 }
 
+fn validate_gradient(gradient: String) -> Result<(), String> {
+    let mut grad_parts = gradient.split(';');
+    match (
+        grad_parts.next(),
+        grad_parts.next(),
+        grad_parts.next(),
+        grad_parts.next(),
+    ) {
+        (Some(c1), Some(c2), Some(len), None) => {
+            validate_color(c1)?;
+            validate_color(c2)?;
+            match len.trim().parse::<u8>() {
+                Ok(n) if n != 0 => Ok(()),
+                _ => Err("Длина градиента должна быть целым положительным числом".to_string()),
+            }
+        }
+        _ => Err("Неправильный формат градиента".to_string()),
+    }
+}
+
 fn get_polinom(matches: &clap::ArgMatches, name: &str) -> Vec<f64> {
     matches
         .value_of(name)
@@ -449,6 +468,14 @@ fn get_polinom(matches: &clap::ArgMatches, name: &str) -> Vec<f64> {
             }
         })
         .collect::<Vec<_>>()
+}
+
+fn color_from(c: &str) -> (u8, u8, u8) {
+    let t = c
+        .split(',')
+        .map(|c| c.trim().parse::<u8>().unwrap())
+        .collect::<Vec<_>>();
+    (t[0], t[1], t[2])
 }
 
 fn get_coord(matches: &clap::ArgMatches) -> ((f64, f64), (f64, f64)) {
@@ -473,26 +500,48 @@ fn get_palette(matches: &clap::ArgMatches) -> Vec<(u8, u8, u8)> {
         .value_of("palette")
         .map(|p| {
             p.split(';')
-                .map(|c| {
-                    let rgb = c
-                        .split(',')
-                        .map(|v| v.trim().parse::<u8>().unwrap())
-                        .collect::<Vec<_>>();
-                    (rgb[0], rgb[1], rgb[2])
-                })
+                .map(color_from)
                 .chain(vec![(0, 0, 0)].into_iter())
-                .collect::<Vec<_>>()
+                .collect()
         })
         .unwrap_or_else(|| {
-            vec![
-                (255, 0, 0),
-                (0, 255, 0),
-                (0, 0, 255),
-                (0, 255, 255),
-                (255, 0, 255),
-                (255, 255, 0),
-                (0, 0, 0),
-            ]
+            matches
+                .value_of("gradient")
+                .map(|g| {
+                    let mut g = g.split(';');
+                    let (c1, c2, len) = (
+                        color_from(g.next().unwrap()),
+                        color_from(g.next().unwrap()),
+                        g.next().unwrap().trim().parse::<u16>().unwrap(),
+                    );
+                    (0..len)
+                        .map(|i| {
+                            (
+                                (c2.0 as u16 * i / (len - 1)
+                                    + c1.0 as u16 * (len - i - 1) / (len - 1))
+                                    as u8,
+                                (c2.1 as u16 * i / (len - 1)
+                                    + c1.1 as u16 * (len - i - 1) / (len - 1))
+                                    as u8,
+                                (c2.2 as u16 * i / (len - 1)
+                                    + c1.2 as u16 * (len - i - 1) / (len - 1))
+                                    as u8,
+                            )
+                        })
+                        .chain(vec![(0, 0, 0)].into_iter())
+                        .collect()
+                })
+                .unwrap_or_else(|| {
+                    vec![
+                        (255, 0, 0),
+                        (0, 255, 0),
+                        (0, 0, 255),
+                        (0, 255, 255),
+                        (255, 0, 255),
+                        (255, 255, 0),
+                        (0, 0, 0),
+                    ]
+                })
         })
 }
 
@@ -557,8 +606,19 @@ fn main() -> Result<(), std::io::Error> {
                 .value_name("R, G, B [; R, G, B [...]]")
                 .help("Устанавливает палитру в цветном режиме")
                 .requires("color")
+                .conflicts_with("gradient")
                 .takes_value(true)
                 .validator(validate_palette),
+        )
+        .arg(
+            Arg::with_name("gradient")
+                .long("gradient")
+                .value_name("R1, G1, B1; R2, G2, B2; LEN")
+                .help("Устанавливает градиент в цветном режиме")
+                .requires("color")
+                .conflicts_with("palette")
+                .takes_value(true)
+                .validator(validate_gradient),
         )
         .get_matches();
 
