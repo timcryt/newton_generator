@@ -83,13 +83,13 @@ impl std::ops::Mul<Func> for Func {
         if let Func::Num(n) = self {
             if n == 0.0 {
                 return Func::Num(0.0);
-            } else if n == 1.0 {
+            } else if (n - 1.0).abs() < std::f64::EPSILON {
                 return other;
             }
         } else if let Func::Num(n) = other {
             if n == 0.0 {
                 return Func::Num(0.0);
-            } else if n == 1.0 {
+            } else if (n - 1.0).abs() < std::f64::EPSILON {
                 return self;
             }
         }
@@ -114,7 +114,7 @@ impl std::ops::Div<Func> for Func {
                 return Func::Num(0.0);
             }
         } else if let Func::Num(n) = other {
-            if n == 1.0 {
+            if (n - 1.0).abs() < std::f64::EPSILON {
                 return self;
             }
         }
@@ -142,11 +142,11 @@ fn find_newton(
     x: Complex<f64>,
     roots: &Option<Vec<Complex<f64>>>,
     f: &Func,
-    g: &Func,
+    f_diff: &Func,
     colorize: bool,
     palette: &[(u8, u8, u8)],
 ) -> (u8, u8, u8) {
-    let (root, d) = find_root(x, f, g);
+    let (root, dep) = find_root(x, f, f_diff);
 
     match root {
         None => (0, 0, 0),
@@ -166,7 +166,7 @@ fn find_newton(
                 }]
             } else {
                 let c = 255
-                    - (d as f64 / ROOT_ITER as f64 * std::u8::MAX as f64 * CONTRAST)
+                    - (dep as f64 / ROOT_ITER as f64 * std::u8::MAX as f64 * CONTRAST)
                         .floor()
                         .min(255.0) as u8;
                 (c, c, c)
