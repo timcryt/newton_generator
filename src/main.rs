@@ -39,6 +39,9 @@ enum Func {
     Sqrt(Box<Func>),
     Exp(Box<Func>),
     Log(Box<Func>),
+    Sin(Box<Func>),
+    Cos(Box<Func>),
+    Tan(Box<Func>),
 }
 
 impl Func {
@@ -55,6 +58,9 @@ impl Func {
             Func::Sqrt(a) => a.calc(x).sqrt(),
             Func::Exp(a) => a.calc(x).exp(),
             Func::Log(a) => a.calc(x).ln(),
+            Func::Sin(a) => a.calc(x).sin(),
+            Func::Cos(a) => a.calc(x).cos(),
+            Func::Tan(a) => a.calc(x).tan(),
         }
     }
 
@@ -73,6 +79,9 @@ impl Func {
             Func::Sqrt(a) => a.clone().diff() / (a.sqrt() * 2.0),
             Func::Exp(a) => a.clone().diff() * a.exp(),
             Func::Log(a) => a.clone().diff() / *a,
+            Func::Sin(a) => a.clone().diff() * a.cos(),
+            Func::Cos(a) => 0.0 - a.clone().diff() * a.sin(),
+            Func::Tan(a) => a.clone().diff() / a.cos().powi(2)
         }
     }
 
@@ -121,6 +130,30 @@ impl Func {
             Func::Num(n.exp())
         } else {
             Func::Exp(Box::new(self))
+        }
+    }
+
+    fn sin(self) -> Func {
+        if let Func::Num(n) = self {
+            Func::Num(n.sin())
+        } else {
+            Func::Sin(Box::new(self))
+        }
+    }
+
+    fn cos(self) -> Func {
+        if let Func::Num(n) = self {
+            Func::Num(n.cos())
+        } else {
+            Func::Cos(Box::new(self))
+        }
+    }
+
+    fn tan(self) -> Func {
+        if let Func::Num(n) = self {
+            Func::Num(n.tan())
+        } else {
+            Func::Tan(Box::new(self))
         }
     }
 }
@@ -647,6 +680,9 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
                     Rule::log => eval_func(func_arg.into_inner()).log(),
                     Rule::sqrt => eval_func(func_arg.into_inner()).sqrt(),
                     Rule::exp => eval_func(func_arg.into_inner()).exp(),
+                    Rule::sin => eval_func(func_arg.into_inner()).sin(),
+                    Rule::cos => eval_func(func_arg.into_inner()).cos(),
+                    Rule::tan => eval_func(func_arg.into_inner()).tan(),
                     _ => unreachable!(),
                 }
             }

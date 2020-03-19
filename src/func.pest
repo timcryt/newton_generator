@@ -12,10 +12,13 @@ operation = _{ add | subtract | multiply | divide }
 const_operation = _{ power_c }   
     power_c  = { "^" }
 
-func_name = _{ sqrt | exp | log }
+func_name = _{ sqrt | exp | log | sin | cos | tan }
     sqrt = { "sqrt" }
     exp  = { "exp" }
     log  = { "log" }
+    sin  = { "sin" }
+    cos  = { "cos" }
+    tan  = { "tan" | "tg" }
 
 
 func_call = { func_name ~ "(" ~ expr ~ ")" }
