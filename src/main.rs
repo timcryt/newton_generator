@@ -72,7 +72,7 @@ impl Func {
             Func::Sub(a, b) => a.diff() - b.diff(),
             Func::Mul(a, b) => *a.clone() * b.clone().diff() + a.diff() * *b,
             Func::Div(a, b) => {
-                (a.clone().diff() * *b.clone() - *a * b.clone().diff()) / (*b.clone() * *b)
+                (a.clone().diff() * *b.clone() - *a * b.clone().diff()) / b.powi(2)
             }
             Func::PowI(a, n) => a.clone().diff() * a.powi(n - 1) * n as f64,
             Func::PowC(a, n) => a.clone().diff() * a.powc(n - 1.0) * n as f64,
