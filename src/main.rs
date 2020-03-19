@@ -17,7 +17,7 @@ use pest::Parser;
 use pest::iterators::{Pair, Pairs};
 use pest::prec_climber::*;
 
-const PRECISION: f64 = 1e-10;
+const PRECISION: f64 = std::f64::EPSILON;
 const ROOT_PRECISION: f64 = 1e-5;
 const ROOT_ITER: u16 = 256;
 const CONTRAST: f64 = 4.0;
@@ -36,6 +36,9 @@ enum Func {
     Div(Box<Func>, Box<Func>),
     PowC(Box<Func>, f64),
     PowI(Box<Func>, i32),
+    Sqrt(Box<Func>),
+    Exp(Box<Func>),
+    Log(Box<Func>),
 }
 
 impl Func {
@@ -49,6 +52,9 @@ impl Func {
             Func::Div(a, b) => a.calc(x) / b.calc(x),
             Func::PowI(a, n) => a.calc(x).powi(*n),
             Func::PowC(a, n) => a.calc(x).powf(*n),
+            Func::Sqrt(a) => a.calc(x).sqrt(),
+            Func::Exp(a) => a.calc(x).exp(),
+            Func::Log(a) => a.calc(x).ln(),
         }
     }
 
@@ -64,6 +70,9 @@ impl Func {
             }
             Func::PowI(a, n) => a.clone().diff() * a.powi(n - 1) * n as f64,
             Func::PowC(a, n) => a.clone().diff() * a.powc(n - 1.0) * n as f64,
+            Func::Sqrt(a) => a.clone().diff() / (a.sqrt() * 2.0),
+            Func::Exp(a) => a.clone().diff() * a.exp(),
+            Func::Log(a) => a.clone().diff() / *a,
         }
     }
 
@@ -82,10 +91,36 @@ impl Func {
             Func::Num(1.0)
         } else if (n - 1.0).abs() < std::f64::EPSILON {
             self
+        } else if (n - 0.5).abs() < std::f64::EPSILON {
+            Func::Sqrt(Box::new(self))
         } else if n.fract() == 0.0 && n < std::i32::MAX as f64 && n > std::i32::MIN as f64 {
             Func::PowI(Box::new(self), n as i32)
         } else {
             Func::PowC(Box::new(self), n)
+        }
+    }
+
+    fn sqrt(self) -> Func {
+        if let Func::Num(n) = self {
+            Func::Num(n.sqrt())
+        } else {
+            Func::Sqrt(Box::new(self))
+        }
+    }
+
+    fn log(self) -> Func {
+        if let Func::Num(n) = self {
+            Func::Num(n.ln())
+        } else {
+            Func::Log(Box::new(self))
+        }
+    }
+
+    fn exp(self) -> Func {
+        if let Func::Num(n) = self {
+            Func::Num(n.exp())
+        } else {
+            Func::Exp(Box::new(self))
         }
     }
 }
@@ -605,6 +640,16 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
             Rule::arg => Func::Arg,
             Rule::num => Func::Num(pair.as_str().parse::<f64>().unwrap()),
             Rule::expr => eval_func(pair.into_inner()),
+            Rule::func_call => {
+                let mut inner = pair.into_inner();
+                let (func_name, func_arg) = (inner.next().unwrap(), inner.next().unwrap());
+                match func_name.as_rule() {
+                    Rule::log => eval_func(func_arg.into_inner()).log(),
+                    Rule::sqrt => eval_func(func_arg.into_inner()).sqrt(),
+                    Rule::exp => eval_func(func_arg.into_inner()).exp(),
+                    _ => unreachable!(),
+                }
+            }
             _ => unreachable!(),
         },
         |lhs: Func, op: Pair<Rule>, rhs: Func| match op.as_rule() {
