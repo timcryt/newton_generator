@@ -6,10 +6,25 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
+
+#[macro_use]
+extern crate pest_derive;
+
+#[macro_use]
+extern crate lazy_static;
+
+use pest::Parser;
+use pest::iterators::{Pair, Pairs};
+use pest::prec_climber::*;
+
 const PRECISION: f64 = 1e-10;
 const ROOT_PRECISION: f64 = 1e-5;
 const ROOT_ITER: u16 = 256;
 const CONTRAST: f64 = 4.0;
+
+#[derive(Parser)]
+#[grammar = "func.pest"]
+struct FuncParser;
 
 #[derive(Debug, Clone)]
 enum Func {
@@ -21,13 +36,6 @@ enum Func {
 }
 
 impl Func {
-    fn from_polinom(polinom: &[f64]) -> Func {
-        polinom
-            .iter()
-            .rev()
-            .fold(Func::Num(0.0), |f, x| f * Func::Arg + *x)
-    }
-
     fn calc(&self, x: Complex<f64>) -> Complex<f64> {
         match self {
             Func::Arg => x,
@@ -360,19 +368,6 @@ fn write_png(path: &str, (w, h): (u32, u32), data: &[u8]) -> Result<(), std::io:
     Ok(())
 }
 
-fn validate_polinom(polinom: String) -> Result<(), String> {
-    if polinom
-        .split(' ')
-        .any(|n| n != "" && n.parse::<f64>().is_err())
-    {
-        Err("Многочлен должен состоять из чисел".to_string())
-    } else if polinom.split(' ').filter(|&n| n != "").count() <= 1 {
-        Err("Многочлен должен иметь хотя бы первую степень".to_string())
-    } else {
-        Ok(())
-    }
-}
-
 fn validate_coord(coord: String) -> Result<(), String> {
     let mut coord_pair = coord.split(';');
     match (coord_pair.next(), coord_pair.next(), coord_pair.next()) {
@@ -455,21 +450,6 @@ fn validate_gradient(gradient: String) -> Result<(), String> {
     }
 }
 
-fn get_polinom(matches: &clap::ArgMatches, name: &str) -> Vec<f64> {
-    matches
-        .value_of(name)
-        .unwrap_or("1.0")
-        .split(' ')
-        .filter_map(|x| {
-            if x == "" {
-                None
-            } else {
-                Some(x.trim().parse::<f64>().unwrap())
-            }
-        })
-        .collect::<Vec<_>>()
-}
-
 fn color_from(c: &str) -> (u8, u8, u8) {
     let t = c
         .split(',')
@@ -545,6 +525,44 @@ fn get_palette(matches: &clap::ArgMatches) -> Vec<(u8, u8, u8)> {
         })
 }
 
+lazy_static! {
+    static ref PREC_CLIMBER: PrecClimber<Rule> = {
+        use Rule::*;
+        use Assoc::*;
+
+        PrecClimber::new(vec![
+            Operator::new(add, Left) | Operator::new(subtract, Left),
+            Operator::new(multiply, Left) | Operator::new(divide, Left),
+        ])
+    };
+}
+
+fn eval_func(expression: Pairs<Rule>) -> Func {
+    PREC_CLIMBER.climb(
+        expression,
+        |pair: Pair<Rule>| match pair.as_rule() {
+            Rule::arg => Func::Arg,
+            Rule::num => Func::Num(pair.as_str().parse::<f64>().unwrap()),
+            Rule::expr => eval_func(pair.into_inner()),
+            _ => unreachable!(),
+        },
+        |lhs: Func, op: Pair<Rule>, rhs: Func| match op.as_rule() {
+            Rule::add      => lhs + rhs,
+            Rule::subtract => lhs + rhs * -1.0,
+            Rule::multiply => lhs * rhs,
+            Rule::divide   => lhs / rhs,
+            _ => unreachable!(),
+        },
+    )
+}
+
+fn parse_func(func_str: &str) -> Result<Func, impl std::error::Error> {
+    match FuncParser::parse(Rule::function, func_str) {
+        Ok(f) => Ok(eval_func(f)),
+        Err(e) => Err(e),
+    }
+}
+
 fn main() -> Result<(), std::io::Error> {
     let matches = App::new("Фракталы Ньютона")
         .version("0.1")
@@ -571,21 +589,16 @@ fn main() -> Result<(), std::io::Error> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("polinom")
-                .short("p")
-                .value_name("POLINOM")
-                .help("Устанавливает числитель функции, по которой строится фрактал")
+            Arg::with_name("function")
+                .short("f")
+                .value_name("function")
+                .help("Устанавливает функцию, по которой строится фрактал")
                 .required(true)
                 .takes_value(true)
-                .validator(validate_polinom),
-        )
-        .arg(
-            Arg::with_name("fraction")
-                .short("f")
-                .value_name("FRACTION")
-                .help("Устанавливает знаменатель функции, по которой строится фрактал")
-                .takes_value(true)
-                .validator(validate_polinom),
+                .validator(|f| match parse_func(&f) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(format!("{}", e)),
+                }),
         )
         .arg(
             Arg::with_name("coord")
@@ -624,8 +637,7 @@ fn main() -> Result<(), std::io::Error> {
 
     let h = matches.value_of("height").unwrap().trim().parse().unwrap();
     let path = matches.value_of("output").unwrap();
-    let polinom = get_polinom(&matches, "polinom");
-    let fraction = get_polinom(&matches, "fraction");
+    let f = parse_func(&matches.value_of("function").unwrap()).unwrap();
 
     let (start, end) = get_coord(&matches);
 
@@ -634,7 +646,6 @@ fn main() -> Result<(), std::io::Error> {
 
     let t = std::time::SystemTime::now();
 
-    let f = Func::from_polinom(&polinom) / Func::from_polinom(&fraction);
     let g = f.clone().diff();
 
     let (w, h, v) = newton(start, end, &f, &g, colorize, &palette, h);
