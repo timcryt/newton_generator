@@ -35,6 +35,7 @@ enum Func {
     Mul(Box<Func>, Box<Func>),
     Div(Box<Func>, Box<Func>),
     PowC(Box<Func>, f64),
+    PowI(Box<Func>, i32),
 }
 
 impl Func {
@@ -46,6 +47,7 @@ impl Func {
             Func::Sub(a, b) => a.calc(x) - b.calc(x),
             Func::Mul(a, b) => a.calc(x) * b.calc(x),
             Func::Div(a, b) => a.calc(x) / b.calc(x),
+            Func::PowI(a, n) => a.calc(x).powi(*n),
             Func::PowC(a, n) => a.calc(x).powf(*n),
         }
     }
@@ -60,7 +62,18 @@ impl Func {
             Func::Div(a, b) => {
                 (a.clone().diff() * *b.clone() - *a * b.clone().diff()) / (*b.clone() * *b)
             }
+            Func::PowI(a, n) => a.clone().diff() * a.powi(n - 1) * n as f64,
             Func::PowC(a, n) => a.clone().diff() * a.powc(n - 1.0) * n as f64,
+        }
+    }
+
+    fn powi(self, n: i32) -> Func {
+        if n == 0 {
+            Func::Num(0.0)
+        } else if n == 1 {
+            self
+        } else {
+            Func::PowI(Box::new(self), n)
         }
     }
 
@@ -69,6 +82,8 @@ impl Func {
             Func::Num(1.0)
         } else if (n - 1.0).abs() < std::f64::EPSILON {
             self
+        } else if n.fract() == 0.0 && n < std::i32::MAX as f64 && n > std::i32::MIN as f64 {
+            Func::PowI(Box::new(self), n as i32)
         } else {
             Func::PowC(Box::new(self), n)
         }
