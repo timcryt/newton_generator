@@ -31,8 +31,10 @@ enum Func {
     Arg,
     Num(f64),
     Add(Box<Func>, Box<Func>),
+    Sub(Box<Func>, Box<Func>),
     Mul(Box<Func>, Box<Func>),
     Div(Box<Func>, Box<Func>),
+    PowC(Box<Func>, f64),
 }
 
 impl Func {
@@ -41,8 +43,10 @@ impl Func {
             Func::Arg => x,
             Func::Num(n) => Complex { re: *n, im: 0.0 },
             Func::Add(a, b) => a.calc(x) + b.calc(x),
+            Func::Sub(a, b) => a.calc(x) - b.calc(x),
             Func::Mul(a, b) => a.calc(x) * b.calc(x),
             Func::Div(a, b) => a.calc(x) / b.calc(x),
+            Func::PowC(a, n) => a.calc(x).powf(*n),
         }
     }
 
@@ -51,10 +55,22 @@ impl Func {
             Func::Arg => Func::Num(1.0),
             Func::Num(_) => Func::Num(0.0),
             Func::Add(a, b) => a.diff() + b.diff(),
+            Func::Sub(a, b) => a.diff() - b.diff(),
             Func::Mul(a, b) => *a.clone() * b.clone().diff() + a.diff() * *b,
             Func::Div(a, b) => {
-                (a.clone().diff() * *b.clone() + *a * b.clone().diff() * -1.0) / (*b.clone() * *b)
+                (a.clone().diff() * *b.clone() - *a * b.clone().diff()) / (*b.clone() * *b)
             }
+            Func::PowC(a, n) => a.clone().diff() * a.powc(n - 1.0) * n as f64,
+        }
+    }
+
+    fn powc(self, n: f64) -> Func {
+        if n == 0.0 {
+            Func::Num(1.0)
+        } else if (n - 1.0).abs() < std::f64::EPSILON {
+            self
+        } else {
+            Func::PowC(Box::new(self), n)
         }
     }
 }
@@ -81,6 +97,35 @@ impl std::ops::Add<f64> for Func {
 
     fn add(self, other: f64) -> Func {
         self + Func::Num(other)
+    }
+}
+
+impl std::ops::Sub<Func> for Func {
+    type Output = Func;
+
+    fn sub(self, other: Func) -> Func {
+        if let Func::Num(n) = other {
+            if n == 0.0 {
+                return self;
+            }
+        }
+        Func::Sub(Box::new(self), Box::new(other))
+    }
+}
+
+impl std::ops::Sub<f64> for Func {
+    type Output = Func;
+
+    fn sub(self, other: f64) -> Func {
+        self - Func::Num(other)
+    }
+}
+
+impl std::ops::Sub<Func> for f64 {
+    type Output = Func;
+
+    fn sub(self, other: Func) -> Func {
+        Func::Num(self) - other
     }
 }
 
@@ -533,6 +578,7 @@ lazy_static! {
         PrecClimber::new(vec![
             Operator::new(add, Left) | Operator::new(subtract, Left),
             Operator::new(multiply, Left) | Operator::new(divide, Left),
+            Operator::new(power_c, Right),
         ])
     };
 }
@@ -548,9 +594,13 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
         },
         |lhs: Func, op: Pair<Rule>, rhs: Func| match op.as_rule() {
             Rule::add      => lhs + rhs,
-            Rule::subtract => lhs + rhs * -1.0,
+            Rule::subtract => lhs - rhs,
             Rule::multiply => lhs * rhs,
             Rule::divide   => lhs / rhs,
+            Rule::power_c  => lhs.powc(match rhs {
+                Func::Num(n) => n,
+                _ => unreachable!(),
+            }),   
             _ => unreachable!(),
         },
     )
