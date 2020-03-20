@@ -6,16 +6,15 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
-
 #[macro_use]
 extern crate pest_derive;
 
 #[macro_use]
 extern crate lazy_static;
 
-use pest::Parser;
 use pest::iterators::{Pair, Pairs};
 use pest::prec_climber::*;
+use pest::Parser;
 
 const PRECISION: f64 = std::f64::EPSILON;
 const ROOT_PRECISION: f64 = 1e-5;
@@ -71,9 +70,7 @@ impl Func {
             Func::Add(a, b) => a.diff() + b.diff(),
             Func::Sub(a, b) => a.diff() - b.diff(),
             Func::Mul(a, b) => *a.clone() * b.clone().diff() + a.diff() * *b,
-            Func::Div(a, b) => {
-                (a.clone().diff() * *b.clone() - *a * b.clone().diff()) / b.powi(2)
-            }
+            Func::Div(a, b) => (a.clone().diff() * *b.clone() - *a * b.clone().diff()) / b.powi(2),
             Func::PowI(a, n) => a.clone().diff() * a.powi(n - 1) * n as f64,
             Func::PowC(a, n) => a.clone().diff() * a.powc(n - 1.0) * n as f64,
             Func::Sqrt(a) => a.clone().diff() / (a.sqrt() * 2.0),
@@ -81,7 +78,7 @@ impl Func {
             Func::Log(a) => a.clone().diff() / *a,
             Func::Sin(a) => a.clone().diff() * a.cos(),
             Func::Cos(a) => 0.0 - a.clone().diff() * a.sin(),
-            Func::Tan(a) => a.clone().diff() / a.cos().powi(2)
+            Func::Tan(a) => a.clone().diff() / a.cos().powi(2),
         }
     }
 
@@ -655,8 +652,8 @@ fn get_palette(matches: &clap::ArgMatches) -> Vec<(u8, u8, u8)> {
 
 lazy_static! {
     static ref PREC_CLIMBER: PrecClimber<Rule> = {
-        use Rule::*;
         use Assoc::*;
+        use Rule::*;
 
         PrecClimber::new(vec![
             Operator::new(add, Left) | Operator::new(subtract, Left),
@@ -689,14 +686,14 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
             _ => unreachable!(),
         },
         |lhs: Func, op: Pair<Rule>, rhs: Func| match op.as_rule() {
-            Rule::add      => lhs + rhs,
+            Rule::add => lhs + rhs,
             Rule::subtract => lhs - rhs,
             Rule::multiply => lhs * rhs,
-            Rule::divide   => lhs / rhs,
-            Rule::power_c  => lhs.powc(match rhs {
+            Rule::divide => lhs / rhs,
+            Rule::power_c => lhs.powc(match rhs {
                 Func::Num(n) => n,
                 _ => unreachable!(),
-            }),   
+            }),
             _ => unreachable!(),
         },
     )
@@ -781,7 +778,7 @@ fn main() -> Result<(), std::io::Error> {
         )
         .get_matches();
 
-    let h = matches.value_of("height").unwrap().trim().parse().unwrap();
+    let height = matches.value_of("height").unwrap().trim().parse().unwrap();
     let path = matches.value_of("output").unwrap();
     let f = parse_func(&matches.value_of("function").unwrap()).unwrap();
 
@@ -790,18 +787,18 @@ fn main() -> Result<(), std::io::Error> {
     let colorize = matches.is_present("color");
     let palette = get_palette(&matches);
 
-    let t = std::time::SystemTime::now();
+    let time = std::time::SystemTime::now();
 
     let g = f.clone().diff();
 
-    let (w, h, v) = newton(start, end, &f, &g, colorize, &palette, h);
+    let (w, h, v) = newton(start, end, &f, &g, colorize, &palette, height);
 
-    println!("Изображение сгенерировано за {:?}", t.elapsed().unwrap());
+    println!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());
 
-    let t = std::time::SystemTime::now();
+    let time = std::time::SystemTime::now();
 
     write_png(&path, (w, h), &v)?;
-    println!("Изображение записано за {:?}", t.elapsed().unwrap());
+    println!("Изображение записано за {:?}", time.elapsed().unwrap());
 
     Ok(())
 }
