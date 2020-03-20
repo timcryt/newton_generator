@@ -446,7 +446,7 @@ fn newton(
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width((x1, y1), (x2, y2), height);
     let roots = if colorize {
-        Some(find_roots((x1, y1), (x2, y2), f, g, max(height / 4, 1)))
+        Some(find_roots((x1, y1), (x2, y2), f, g, height))
     } else {
         None
     };
