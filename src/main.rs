@@ -16,7 +16,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::prec_climber::*;
 use pest::Parser;
 
-const PRECISION: f64 = std::f64::EPSILON;
+const PRECISION: f64 = 1e-10;
 const ROOT_PRECISION: f64 = 1e-5;
 const ROOT_ITER: u16 = 256;
 const CONTRAST: f64 = 4.0;
