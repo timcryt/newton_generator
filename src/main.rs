@@ -715,7 +715,7 @@ fn main() -> Result<(), std::io::Error> {
             Arg::with_name("height")
                 .short("h")
                 .value_name("HEIGHT")
-                .help("Устанавливает высоту результурющего изображения")
+                .help("Устанавливает высоту результирующего изображения")
                 .required(true)
                 .takes_value(true)
                 .validator(|v| match v.trim().parse::<u32>() {
@@ -727,7 +727,7 @@ fn main() -> Result<(), std::io::Error> {
             Arg::with_name("output")
                 .short("o")
                 .value_name("OUTPUT")
-                .help("Уставливает файл изображения")
+                .help("Устанавливает файл изображения")
                 .required(true)
                 .takes_value(true),
         )
@@ -747,14 +747,14 @@ fn main() -> Result<(), std::io::Error> {
             Arg::with_name("coord")
                 .short("c")
                 .value_name("X1, Y1; X2, Y2")
-                .help("Устанавливает координаты для отобажения фрактала")
+                .help("Устанавливает координаты для отображения фрактала")
                 .takes_value(true)
                 .validator(validate_coord),
         )
         .arg(
             Arg::with_name("color")
                 .long("color")
-                .help("Утсанавливливает режим расцветки"),
+                .help("Устанавливливает режим расцветки"),
         )
         .arg(
             Arg::with_name("palette")
