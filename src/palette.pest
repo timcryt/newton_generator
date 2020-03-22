@@ -1,0 +1,13 @@
+color_digit = { HEX_DIGIT{2} }
+
+color_number = @{ color_digit{3} }
+
+color = {"#" ~ color_number }
+
+palette = _{ SOI ~ color ~ (" "+ ~ color)+ ~ EOI }
+
+num = @{ !("0"* ~ "1" ~ (!ASCII_DIGIT | EOI)) ~ ("0"* ~ (non_null+ ~ "0"*)+) }
+    non_null = { !"0" ~ ASCII_DIGIT}
+    non_one  = { !"1" ~ ASCII_DIGIT}
+
+gradient = _{ SOI ~ color ~ " "+ ~ color ~ " "+ ~ num ~ EOI }
