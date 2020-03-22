@@ -76,7 +76,9 @@ impl Func {
     }
 
     fn powc(self, n: f64) -> Func {
-        if n == 0.0 {
+        if let Func::Num(a) = self {
+            Func::Num(a.powf(n))
+        } else if n == 0.0 {
             Func::Num(1.0)
         } else if (n - 1.0).abs() < std::f64::EPSILON {
             self
@@ -142,10 +144,12 @@ impl std::ops::Add<Func> for Func {
     type Output = Func;
 
     fn add(self, other: Func) -> Func {
-        if let Func::Num(n) = self {
+        if let (Func::Num(n), Func::Num(m)) = (&self, &other) {
+            return Func::Num(n + m);
+        } else if let Func::Num(n) = self {
             if n == 0.0 {
                 return other;
-            }
+            } 
         } else if let Func::Num(n) = other {
             if n == 0.0 {
                 return self;
@@ -167,7 +171,9 @@ impl std::ops::Sub<Func> for Func {
     type Output = Func;
 
     fn sub(self, other: Func) -> Func {
-        if let Func::Num(n) = other {
+        if let (Func::Num(n), Func::Num(m)) = (&self, &other) {
+            return Func::Num(n - m);
+        } else if let Func::Num(n) = other {
             if n == 0.0 {
                 return self;
             }
@@ -196,7 +202,9 @@ impl std::ops::Mul<Func> for Func {
     type Output = Func;
 
     fn mul(self, other: Func) -> Func {
-        if let Func::Num(n) = self {
+        if let (Func::Num(n), Func::Num(m)) = (&self, &other) {
+            return Func::Num(n * m);
+        } else if let Func::Num(n) = self {
             if n == 0.0 {
                 return Func::Num(0.0);
             } else if (n - 1.0).abs() < std::f64::EPSILON {
@@ -225,7 +233,9 @@ impl std::ops::Div<Func> for Func {
     type Output = Func;
 
     fn div(self, other: Func) -> Func {
-        if let Func::Num(n) = self {
+        if let (Func::Num(n), Func::Num(m)) = (&self, &other) {
+            return Func::Num(n / m);
+        } else if let Func::Num(n) = self {
             if n == 0.0 {
                 return Func::Num(0.0);
             }
