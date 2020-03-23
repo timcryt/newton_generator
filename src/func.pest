@@ -3,7 +3,14 @@ num = @{ int ~ ("." ~ ASCII_DIGIT*)? ~ (^"e" ~ int)? }
 
 arg = { "x" }
 
-im = { "i" }
+EOC = { WHITESPACE | operation | ")" | EOI }
+
+constant = _{  ( im | pi | e ) ~ &EOC }
+    im = { "i" }
+    pi = { "pi" }
+    e  = { "e" }
+
+
 
 operation = _{ add | subtract | multiply | divide }
     add      = { "+" }
@@ -26,7 +33,7 @@ func_name = _{ sqrt | exp | log | sin | cos | tan }
 func_call = { func_name ~ "(" ~ expr ~ ")" }
 
 expr = { term ~ (operation ~ term | const_operation ~ num)* }
-term = _{ arg | num | im | func_call | "(" ~ expr ~ ")" }
+term = _{ arg | num | constant | func_call | "(" ~ expr ~ ")" }
 
 function = _{ SOI ~ expr ~ EOI }
 

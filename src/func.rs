@@ -285,6 +285,8 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
         |pair: Pair<Rule>| match pair.as_rule() {
             Rule::arg => Func::Arg,
             Rule::num => Func::Num(pair.as_str().parse::<f64>().unwrap()),
+            Rule::pi  => Func::Num(std::f64::consts::PI),
+            Rule::e   => Func::Num(std::f64::consts::E),
             Rule::im  => Func::Im,
             Rule::expr => eval_func(pair.into_inner()),
             Rule::func_call => {
