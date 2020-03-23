@@ -3,6 +3,8 @@ num = @{ int ~ ("." ~ ASCII_DIGIT*)? ~ (^"e" ~ int)? }
 
 arg = { "x" }
 
+im = { "i" }
+
 operation = _{ add | subtract | multiply | divide }
     add      = { "+" }
     subtract = { "-" }
@@ -24,7 +26,7 @@ func_name = _{ sqrt | exp | log | sin | cos | tan }
 func_call = { func_name ~ "(" ~ expr ~ ")" }
 
 expr = { term ~ (operation ~ term | const_operation ~ num)* }
-term = _{ arg | num | func_call | "(" ~ expr ~ ")" }
+term = _{ arg | num | im | func_call | "(" ~ expr ~ ")" }
 
 function = _{ SOI ~ expr ~ EOI }
 

@@ -12,6 +12,7 @@ struct FuncParser;
 pub enum Func {
     Arg,
     Num(f64),
+    Im,
     Add(Box<Func>, Box<Func>),
     Sub(Box<Func>, Box<Func>),
     Mul(Box<Func>, Box<Func>),
@@ -31,6 +32,7 @@ impl Func {
         match self {
             Func::Arg => x,
             Func::Num(n) => Complex { re: *n, im: 0.0 },
+            Func::Im => Complex { re: 0.0, im: 1.0 },
             Func::Add(a, b) => a.calc(x) + b.calc(x),
             Func::Sub(a, b) => a.calc(x) - b.calc(x),
             Func::Mul(a, b) => a.calc(x) * b.calc(x),
@@ -49,7 +51,7 @@ impl Func {
     pub fn diff(self) -> Func {
         match self {
             Func::Arg => Func::Num(1.0),
-            Func::Num(_) => Func::Num(0.0),
+            Func::Num(_) | Func::Im => Func::Num(0.0),
             Func::Add(a, b) => a.diff() + b.diff(),
             Func::Sub(a, b) => a.diff() - b.diff(),
             Func::Mul(a, b) => *a.clone() * b.clone().diff() + a.diff() * *b,
@@ -283,6 +285,7 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
         |pair: Pair<Rule>| match pair.as_rule() {
             Rule::arg => Func::Arg,
             Rule::num => Func::Num(pair.as_str().parse::<f64>().unwrap()),
+            Rule::im  => Func::Im,
             Rule::expr => eval_func(pair.into_inner()),
             Rule::func_call => {
                 let mut inner = pair.into_inner();
