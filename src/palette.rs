@@ -45,7 +45,7 @@ pub fn get_palette(matches: &clap::ArgMatches) -> Vec<(u8, u8, u8)> {
                                 Some(hex::decode(c.into_inner().as_str()).unwrap())
                             }
                             Rule::num => {
-                                len = dbg!(c.as_str()).parse::<u16>().unwrap();
+                                len = c.as_str().parse::<u16>().unwrap();
                                 None
                             }
                             _ => None,
