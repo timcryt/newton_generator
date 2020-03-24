@@ -12,13 +12,13 @@ extern crate pest_derive;
 #[macro_use]
 extern crate lazy_static;
 
+mod coord;
 mod func;
 mod palette;
-mod coord;
 
+use crate::coord::*;
 use crate::func::*;
 use crate::palette::*;
-use crate::coord::*;
 
 const PRECISION: f64 = 1e-10;
 const ROOT_PRECISION: f64 = 1e-5;
@@ -293,29 +293,12 @@ fn main() -> Result<(), std::io::Error> {
                 .validator(validate_coord),
         )
         .arg(
-            Arg::with_name("color")
-                .long("color")
-                .help("Устанавливливает режим расцветки"),
-        )
-        .arg(
             Arg::with_name("palette")
                 .long("palette")
-                .value_name("R, G, B [; R, G, B [...]]")
-                .help("Устанавливает палитру в цветном режиме")
-                .requires("color")
-                .conflicts_with("gradient")
+                .value_name("(R, G, B [; R, G, B [...]]) | (R1, G1, B1; R2, G2, B2; LEN)")
+                .help("Устанавливает цветной режим и палитру или градиент в нём")
                 .takes_value(true)
                 .validator(validate_palette),
-        )
-        .arg(
-            Arg::with_name("gradient")
-                .long("gradient")
-                .value_name("R1, G1, B1; R2, G2, B2; LEN")
-                .help("Устанавливает градиент в цветном режиме")
-                .requires("color")
-                .conflicts_with("palette")
-                .takes_value(true)
-                .validator(validate_gradient),
         )
         .get_matches();
 
@@ -325,7 +308,7 @@ fn main() -> Result<(), std::io::Error> {
 
     let (start, end) = get_coord(&matches);
 
-    let colorize = matches.is_present("color");
+    let colorize = matches.is_present("palette");
     let palette = get_palette(&matches);
 
     let time = std::time::SystemTime::now();
