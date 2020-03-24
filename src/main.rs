@@ -309,7 +309,11 @@ fn main() -> Result<(), std::io::Error> {
     let (start, end) = get_coord(&matches);
 
     let colorize = matches.is_present("palette");
-    let palette = get_palette(&matches);
+    let palette = if colorize {
+        get_palette(matches.value_of("palette").unwrap())
+    } else {
+        vec![]
+    };
 
     let time = std::time::SystemTime::now();
 
