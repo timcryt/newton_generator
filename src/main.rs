@@ -300,14 +300,19 @@ fn main() -> Result<(), std::io::Error> {
                 .takes_value(true)
                 .validator(validate_palette),
         )
+        .arg(
+            Arg::with_name("verbose")
+                .short("v")
+                .help("Устанавливает подробный режим")
+                .takes_value(false)
+        )
         .get_matches();
 
     let height = matches.value_of("height").unwrap().trim().parse().unwrap();
     let path = matches.value_of("output").unwrap();
     let f = parse_func(&matches.value_of("function").unwrap()).unwrap();
-
     let (start, end) = get_coord(&matches);
-
+    let verbose = matches.is_present("verbose");
     let colorize = matches.is_present("palette");
     let palette = if colorize {
         get_palette(matches.value_of("palette").unwrap())
@@ -321,12 +326,17 @@ fn main() -> Result<(), std::io::Error> {
 
     let (w, h, v) = newton(start, end, &f, &g, colorize, &palette, height);
 
-    println!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());
+    if verbose {
+        eprintln!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());
+    }
 
     let time = std::time::SystemTime::now();
 
     write_png(&path, (w, h), &v)?;
-    println!("Изображение записано за {:?}", time.elapsed().unwrap());
+
+    if verbose {
+        eprintln!("Изображение записано за {:?}", time.elapsed().unwrap());
+    }
 
     Ok(())
 }
