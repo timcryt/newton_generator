@@ -53,10 +53,9 @@ pub fn get_palette(palette_string: &str) -> Vec<(u8, u8, u8)> {
                     op.into_inner().as_str().parse::<u16>().unwrap(),
                 );
                 (
-                    lhs.0
+                   lhs.0
                         .iter()
                         .copied()
-                        .take(lhs.0.len() - if lf.3 { 1 } else { 0 })
                         .chain((1..=len).map(|i| {
                             (
                                 (fr.0 as u16 * i / (len + 1)
@@ -71,7 +70,7 @@ pub fn get_palette(palette_string: &str) -> Vec<(u8, u8, u8)> {
                                 false,
                             )
                         }))
-                        .chain(rhs.0.into_iter().skip(if fr.3 { 1 } else { 0 }))
+                        .chain(rhs.0)
                         .collect(),
                     true,
                 )
@@ -84,7 +83,7 @@ pub fn get_palette(palette_string: &str) -> Vec<(u8, u8, u8)> {
     );
     palette
         .into_iter()
-        .map(|(r, g, b, _)| (r, g, b))
+        .filter_map(|(r, g, b, h)| if h { None  } else { Some((r, g, b)) })
         .chain(if needs_default {
             vec![(0, 0, 0)]
         } else {
