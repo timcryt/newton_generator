@@ -4,11 +4,13 @@ color_number = @{ color_digit{3} }
 
 color = {"#" ~ color_number }
 
+hidden_color = {"!#" ~ color_number }
+
 color_separator = _{ simple_separator | full_separator }
 	simple_separator = { "-" ~ ">" }
     full_separator = { "-(" ~ num ~ ")>" }
 
-palette = _{ SOI ~ color ~ (" "+ ~ color_separator ~ " "+ ~ color)+ ~ EOI }
+palette = _{ SOI ~ color ~ (" "+ ~ color_separator ~ " "+ ~ (color | hidden_color))+ ~ EOI }
 
 num = @{ ASCII_DIGIT+ }
 
