@@ -10,7 +10,11 @@ color_separator = _{ simple_separator | full_separator }
 	simple_separator = { "-" ~ ">" }
     full_separator = { "-(" ~ num ~ ")>" }
 
-palette = _{ SOI ~ color ~ (" "+ ~ color_separator ~ " "+ ~ (color | hidden_color))+ ~ EOI }
+default_color = _{ " "+ ~ default_separator ~ " "+ ~ color }
+    default_separator = { "|" }
+
+
+palette = _{ SOI ~ color ~ (" "+ ~ color_separator ~ " "+ ~ (color | hidden_color))+ ~ default_color? ~ EOI }
 
 num = @{ ASCII_DIGIT+ }
 

@@ -36,7 +36,13 @@ fn find_newton(
     let (root, dep) = find_root(x, f, f_diff);
 
     match root {
-        None => (0, 0, 0),
+        None => {
+            if colorize {
+                palette[palette.len() - 1]
+            } else {
+                (0, 0, 0)
+            }
+        }
         Some(root) => {
             if colorize {
                 palette[match roots
@@ -304,7 +310,7 @@ fn main() -> Result<(), std::io::Error> {
             Arg::with_name("verbose")
                 .short("v")
                 .help("Устанавливает подробный режим")
-                .takes_value(false)
+                .takes_value(false),
         )
         .get_matches();
 
