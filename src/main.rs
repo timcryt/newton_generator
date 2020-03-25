@@ -295,8 +295,8 @@ fn main() -> Result<(), std::io::Error> {
         .arg(
             Arg::with_name("palette")
                 .long("palette")
-                .value_name("(R, G, B [; R, G, B [...]]) | (R1, G1, B1; R2, G2, B2; LEN)")
-                .help("Устанавливает цветной режим и палитру или градиент в нём")
+                .value_name("#RRGGBB [-[(LEN1)]> #RRGGBB [-[(LEN2)]> #RRGGBB [...]]]")
+                .help("Устанавливает цветной режим и палитру в нём")
                 .takes_value(true)
                 .validator(validate_palette),
         )
