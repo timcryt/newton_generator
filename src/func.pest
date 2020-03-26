@@ -21,10 +21,10 @@ operation = _{ add | subtract | multiply | divide }
 const_operation = _{ power_c }   
     power_c  = { "^" }
 
-func_name = _{ sqrt | exp | log | sin | cos | tan }
+func_name = _{ sqrt | exp | ln | sin | cos | tan }
     sqrt = { "sqrt" }
     exp  = { "exp" }
-    log  = { "log" }
+    ln  = { "ln" }
     sin  = { "sin" }
     cos  = { "cos" }
     tan  = { "tan" | "tg" }

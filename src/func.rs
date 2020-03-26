@@ -21,7 +21,7 @@ pub enum Func {
     PowI(Box<Func>, i32),
     Sqrt(Box<Func>),
     Exp(Box<Func>),
-    Log(Box<Func>),
+    Ln(Box<Func>),
     Sin(Box<Func>),
     Cos(Box<Func>),
     Tan(Box<Func>),
@@ -41,7 +41,7 @@ impl Func {
             Func::PowC(a, n) => a.calc(x).powf(*n),
             Func::Sqrt(a) => a.calc(x).sqrt(),
             Func::Exp(a) => a.calc(x).exp(),
-            Func::Log(a) => a.calc(x).ln(),
+            Func::Ln(a) => a.calc(x).ln(),
             Func::Sin(a) => a.calc(x).sin(),
             Func::Cos(a) => a.calc(x).cos(),
             Func::Tan(a) => a.calc(x).tan(),
@@ -60,7 +60,7 @@ impl Func {
             Func::PowC(a, n) => a.clone().diff() * a.powc(n - 1.0) * n as f64,
             Func::Sqrt(a) => a.clone().diff() / (a.sqrt() * 2.0),
             Func::Exp(a) => a.clone().diff() * a.exp(),
-            Func::Log(a) => a.clone().diff() / *a,
+            Func::Ln(a) => a.clone().diff() / *a,
             Func::Sin(a) => a.clone().diff() * a.cos(),
             Func::Cos(a) => 0.0 - a.clone().diff() * a.sin(),
             Func::Tan(a) => a.clone().diff() / a.cos().powi(2),
@@ -101,11 +101,11 @@ impl Func {
         }
     }
 
-    fn log(self) -> Func {
+    fn ln(self) -> Func {
         if let Func::Num(n) = self {
             Func::Num(n.ln())
         } else {
-            Func::Log(Box::new(self))
+            Func::Ln(Box::new(self))
         }
     }
 
@@ -151,7 +151,7 @@ impl std::ops::Add<Func> for Func {
         } else if let Func::Num(n) = self {
             if n == 0.0 {
                 return other;
-            } 
+            }
         } else if let Func::Num(n) = other {
             if n == 0.0 {
                 return self;
@@ -285,15 +285,15 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
         |pair: Pair<Rule>| match pair.as_rule() {
             Rule::arg => Func::Arg,
             Rule::num => Func::Num(pair.as_str().parse::<f64>().unwrap()),
-            Rule::pi  => Func::Num(std::f64::consts::PI),
-            Rule::e   => Func::Num(std::f64::consts::E),
-            Rule::im  => Func::Im,
+            Rule::pi => Func::Num(std::f64::consts::PI),
+            Rule::e => Func::Num(std::f64::consts::E),
+            Rule::im => Func::Im,
             Rule::expr => eval_func(pair.into_inner()),
             Rule::func_call => {
                 let mut inner = pair.into_inner();
                 let (func_name, func_arg) = (inner.next().unwrap(), inner.next().unwrap());
                 match func_name.as_rule() {
-                    Rule::log => eval_func(func_arg.into_inner()).log(),
+                    Rule::ln => eval_func(func_arg.into_inner()).ln(),
                     Rule::sqrt => eval_func(func_arg.into_inner()).sqrt(),
                     Rule::exp => eval_func(func_arg.into_inner()).exp(),
                     Rule::sin => eval_func(func_arg.into_inner()).sin(),
