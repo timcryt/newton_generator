@@ -12,6 +12,8 @@ extern crate pest_derive;
 #[macro_use]
 extern crate lazy_static;
 
+pub type Color = (u8, u8, u8);
+
 mod coord;
 mod func;
 mod palette;
@@ -30,41 +32,37 @@ fn find_newton(
     roots: &Option<Vec<Complex<f64>>>,
     f: &Func,
     f_diff: &Func,
-    colorize: bool,
-    palette: &[(u8, u8, u8)],
+    palette: Option<&(Vec<Color>, Color)>,
 ) -> (u8, u8, u8) {
     let (root, dep) = find_root(x, f, f_diff);
 
     match root {
         None => {
-            if colorize {
-                palette[palette.len() - 1]
+            if let Some((_, defcol)) = palette {
+                *defcol
             } else {
                 (0, 0, 0)
             }
         }
-        Some(root) => {
-            if colorize {
-                palette[match roots
-                    .as_ref()
-                    .unwrap()
-                    .iter()
-                    .enumerate()
-                    .find(|x| (*x.1 - root).norm() < ROOT_PRECISION)
-                    .unwrap_or((std::usize::MAX, &Complex::default()))
-                    .0
-                {
-                    std::usize::MAX => palette.len() - 1,
-                    x => x % (palette.len() - 1),
-                }]
-            } else {
+        Some(root) => match palette {
+            Some((palette, defcol)) => match roots
+                .as_ref()
+                .unwrap()
+                .iter()
+                .enumerate()
+                .find(|x| (*x.1 - root).norm() < ROOT_PRECISION)
+            {
+                Some((x, _)) => palette[x % palette.len()],
+                None => *defcol,
+            },
+            None => {
                 let c = 255
                     - (dep as f64 / ROOT_ITER as f64 * std::u8::MAX as f64 * CONTRAST)
                         .floor()
                         .min(255.0) as u8;
                 (c, c, c)
             }
-        }
+        },
     }
 }
 
@@ -201,7 +199,7 @@ fn newton(
     f: &Func,
     g: &Func,
     colorize: bool,
-    palette: &[(u8, u8, u8)],
+    palette: Option<&(Vec<Color>, Color)>,
     height: u32,
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width((x1, y1), (x2, y2), height);
@@ -224,7 +222,6 @@ fn newton(
                             &roots,
                             f,
                             g,
-                            colorize,
                             palette,
                         );
                         vec![r, g, b]
@@ -321,16 +318,16 @@ fn main() -> Result<(), std::io::Error> {
     let verbose = matches.is_present("verbose");
     let colorize = matches.is_present("palette");
     let palette = if colorize {
-        get_palette(matches.value_of("palette").unwrap())
+        Some(get_palette(matches.value_of("palette").unwrap()))
     } else {
-        vec![]
+        None
     };
 
     let time = std::time::SystemTime::now();
 
     let g = f.clone().diff();
 
-    let (w, h, v) = newton(start, end, &f, &g, colorize, &palette, height);
+    let (w, h, v) = newton(start, end, &f, &g, colorize, palette.as_ref(), height);
 
     if verbose {
         eprintln!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());

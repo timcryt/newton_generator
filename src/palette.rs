@@ -2,6 +2,8 @@ use pest::iterators::Pair;
 use pest::prec_climber::*;
 use pest::Parser;
 
+use crate::Color;
+
 #[derive(Parser)]
 #[grammar = "palette.pest"]
 struct PaletteParser;
@@ -29,23 +31,23 @@ lazy_static! {
     };
 }
 
-pub fn get_palette(palette_string: &str) -> Vec<(u8, u8, u8)> {
-    let (palette, needs_default) = PREC_CLIMBER.climb(
+pub fn get_palette(palette_string: &str) -> (Vec<Color>, Color) {
+    let (palette, defcol) = PREC_CLIMBER.climb(
         PaletteParser::parse(Rule::palette, palette_string).unwrap(),
         |pair: Pair<Rule>| match pair.as_rule() {
             Rule::color => {
                 let v = hex::decode(pair.into_inner().as_str()).unwrap();
-                (vec![(v[0], v[1], v[2], false)], true)
+                (vec![(v[0], v[1], v[2], false)], None)
             }
             Rule::hidden_color => {
                 let v = hex::decode(pair.into_inner().as_str()).unwrap();
-                (vec![(v[0], v[1], v[2], true)], true)
+                (vec![(v[0], v[1], v[2], true)], None)
             }
 
             _ => unreachable!(),
         },
         |lhs, op, rhs| match op.as_rule() {
-            Rule::simple_separator => (lhs.0.into_iter().chain(rhs.0.into_iter()).collect(), true),
+            Rule::simple_separator => (lhs.0.into_iter().chain(rhs.0.into_iter()).collect(), None),
             Rule::full_separator => {
                 let (lf, fr, len) = (
                     lhs.0[lhs.0.len() - 1],
@@ -53,7 +55,7 @@ pub fn get_palette(palette_string: &str) -> Vec<(u8, u8, u8)> {
                     op.into_inner().as_str().parse::<u16>().unwrap(),
                 );
                 (
-                   lhs.0
+                    lhs.0
                         .iter()
                         .copied()
                         .chain((1..=len).map(|i| {
@@ -72,22 +74,21 @@ pub fn get_palette(palette_string: &str) -> Vec<(u8, u8, u8)> {
                         }))
                         .chain(rhs.0)
                         .collect(),
-                    true,
+                    None,
                 )
             }
-            Rule::default_separator => {
-                (lhs.0.into_iter().chain(rhs.0.into_iter()).collect(), false)
-            }
+            Rule::default_separator => (lhs.0, Some(rhs.0[0])),
             _ => unreachable!(),
         },
     );
-    palette
-        .into_iter()
-        .filter_map(|(r, g, b, h)| if h { None  } else { Some((r, g, b)) })
-        .chain(if needs_default {
-            vec![(0, 0, 0)]
-        } else {
-            vec![]
-        })
-        .collect()
+    (
+        palette
+            .into_iter()
+            .filter_map(|(r, g, b, h)| if h { None } else { Some((r, g, b)) })
+            .collect(),
+        match defcol {
+            None => (0, 0, 0),
+            Some((r, g, b, _)) => (r, g, b),
+        },
+    )
 }
