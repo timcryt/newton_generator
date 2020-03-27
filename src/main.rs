@@ -5,6 +5,10 @@ use std::cmp::max;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
 
 #[macro_use]
 extern crate pest_derive;
@@ -26,6 +30,8 @@ const PRECISION: f64 = 1e-10;
 const ROOT_PRECISION: f64 = 1e-5;
 const ROOT_ITER: u16 = 256;
 const CONTRAST: f64 = 4.0;
+
+const PIXEL_COUNT_FREQ: Duration = Duration::from_millis(1000);
 
 fn find_newton(
     x: Complex<f64>,
@@ -154,6 +160,14 @@ fn find_roots(
 ) -> Vec<Complex<f64>> {
     let width = calculate_width((x1, y1), (x2, y2), height);
 
+    let pixels = Arc::new(Mutex::new(0));
+
+    count_pixels(
+        "Поиск корней: ",
+        Arc::clone(&pixels),
+        (height * width) as usize,
+    );
+
     uniq_vec(
         (0..height)
             .into_par_iter()
@@ -161,6 +175,7 @@ fn find_roots(
                 uniq_vec(
                     (0..width)
                         .filter_map(|j| {
+                            *pixels.lock().unwrap() += 1;
                             find_root(
                                 complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
                                 f,
@@ -193,21 +208,43 @@ fn calculate_width((x1, y1): (f64, f64), (x2, y2): (f64, f64), height: u32) -> u
     max(((x2 - x1) / (y2 - y1) * height as f64) as u32, 1)
 }
 
+fn count_pixels(intro: &'static str, counter: Arc<Mutex<usize>>, max: usize) {
+    thread::spawn(move || {
+        while *counter.lock().unwrap() < max {
+            let count = *counter.lock().unwrap();
+            eprintln!(
+                "{} {:3.2}% ({:10}/{:10})",
+                intro,
+                100.0 * count as f64 / max as f64,
+                count,
+                max
+            );
+            thread::sleep(PIXEL_COUNT_FREQ);
+        }
+    });
+}
+
 fn newton(
     (x1, y1): (f64, f64),
     (x2, y2): (f64, f64),
     f: &Func,
     g: &Func,
-    colorize: bool,
     palette: Option<&(Vec<Color>, Color)>,
     height: u32,
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width((x1, y1), (x2, y2), height);
-    let roots = if colorize {
+    let roots = if palette.is_some() {
         Some(find_roots((x1, y1), (x2, y2), f, g, height))
     } else {
         None
     };
+
+    let counter = Arc::new(Mutex::new(0));
+    count_pixels(
+        "Генерация фрактала: ",
+        Arc::clone(&counter),
+        (height * width) as usize,
+    );
 
     (
         width,
@@ -224,6 +261,7 @@ fn newton(
                             g,
                             palette,
                         );
+                        *counter.lock().unwrap() += 1;
                         vec![r, g, b]
                     })
                     .flatten()
@@ -303,43 +341,30 @@ fn main() -> Result<(), std::io::Error> {
                 .takes_value(true)
                 .validator(validate_palette),
         )
-        .arg(
-            Arg::with_name("verbose")
-                .short("v")
-                .help("Устанавливает подробный режим")
-                .takes_value(false),
-        )
         .get_matches();
 
     let height = matches.value_of("height").unwrap().trim().parse().unwrap();
     let path = matches.value_of("output").unwrap();
     let f = parse_func(&matches.value_of("function").unwrap()).unwrap();
     let (start, end) = get_coord(&matches);
-    let verbose = matches.is_present("verbose");
-    let colorize = matches.is_present("palette");
-    let palette = if colorize {
-        Some(get_palette(matches.value_of("palette").unwrap()))
-    } else {
-        None
+    let palette = match matches.value_of("palette") {
+        Some(palette_str) => Some(get_palette(palette_str)),
+        None => None,
     };
 
     let time = std::time::SystemTime::now();
 
     let g = f.clone().diff();
 
-    let (w, h, v) = newton(start, end, &f, &g, colorize, palette.as_ref(), height);
+    let (w, h, v) = newton(start, end, &f, &g, palette.as_ref(), height);
 
-    if verbose {
-        eprintln!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());
-    }
+    eprintln!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());
 
     let time = std::time::SystemTime::now();
 
     write_png(&path, (w, h), &v)?;
 
-    if verbose {
-        eprintln!("Изображение записано за {:?}", time.elapsed().unwrap());
-    }
+    eprintln!("Изображение записано за {:?}", time.elapsed().unwrap());
 
     Ok(())
 }
