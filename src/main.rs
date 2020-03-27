@@ -160,13 +160,7 @@ fn find_roots(
 ) -> Vec<Complex<f64>> {
     let width = calculate_width((x1, y1), (x2, y2), height);
 
-    let pixels = Arc::new(Mutex::new(0));
-
-    count_pixels(
-        "Поиск корней: ",
-        Arc::clone(&pixels),
-        (height * width) as usize,
-    );
+    let counter = count_pixels("Поиск корней: ", (height * width) as usize);
 
     uniq_vec(
         (0..height)
@@ -175,7 +169,7 @@ fn find_roots(
                 uniq_vec(
                     (0..width)
                         .filter_map(|j| {
-                            *pixels.lock().unwrap() += 1;
+                            *counter.lock().unwrap() += 1;
                             find_root(
                                 complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
                                 f,
@@ -208,7 +202,9 @@ fn calculate_width((x1, y1): (f64, f64), (x2, y2): (f64, f64), height: u32) -> u
     max(((x2 - x1) / (y2 - y1) * height as f64) as u32, 1)
 }
 
-fn count_pixels(intro: &'static str, counter: Arc<Mutex<usize>>, max: usize) {
+fn count_pixels(intro: &'static str, max: usize) -> Arc<Mutex<usize>> {
+    let counter = Arc::new(Mutex::new(0));
+    let counter_clone = Arc::clone(&counter);
     thread::spawn(move || {
         while *counter.lock().unwrap() < max {
             let count = *counter.lock().unwrap();
@@ -222,6 +218,7 @@ fn count_pixels(intro: &'static str, counter: Arc<Mutex<usize>>, max: usize) {
             thread::sleep(PIXEL_COUNT_FREQ);
         }
     });
+    counter_clone
 }
 
 fn newton(
@@ -239,12 +236,7 @@ fn newton(
         None
     };
 
-    let counter = Arc::new(Mutex::new(0));
-    count_pixels(
-        "Генерация фрактала: ",
-        Arc::clone(&counter),
-        (height * width) as usize,
-    );
+    let counter = count_pixels("Генерация фрактала: ", (height * width) as usize);
 
     (
         width,
