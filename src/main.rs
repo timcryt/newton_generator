@@ -6,9 +6,9 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[macro_use]
 extern crate pest_derive;
@@ -169,7 +169,7 @@ fn find_roots(
                 uniq_vec(
                     (0..width)
                         .filter_map(|j| {
-                            *counter.lock().unwrap() += 1;
+                            counter.fetch_add(1, Ordering::Relaxed);
                             find_root(
                                 complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
                                 f,
@@ -202,12 +202,12 @@ fn calculate_width((x1, y1): (f64, f64), (x2, y2): (f64, f64), height: u32) -> u
     max(((x2 - x1) / (y2 - y1) * height as f64) as u32, 1)
 }
 
-fn count_pixels(intro: &'static str, max: usize) -> Arc<Mutex<usize>> {
-    let counter = Arc::new(Mutex::new(0));
+fn count_pixels(intro: &'static str, max: usize) -> Arc<AtomicUsize> {
+    let counter = Arc::new(AtomicUsize::new(0));
     let counter_clone = Arc::clone(&counter);
     thread::spawn(move || {
-        while *counter.lock().unwrap() < max {
-            let count = *counter.lock().unwrap();
+        while counter.load(Ordering::Relaxed) < max {
+            let count = counter.load(Ordering::Relaxed);
             eprintln!(
                 "{} {:3.2}% ({:10}/{:10})",
                 intro,
@@ -253,7 +253,7 @@ fn newton(
                             g,
                             palette,
                         );
-                        *counter.lock().unwrap() += 1;
+                        counter.fetch_add(1, Ordering::Relaxed);
                         vec![r, g, b]
                     })
                     .flatten()
