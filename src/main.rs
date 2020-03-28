@@ -5,10 +5,10 @@ use std::cmp::max;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[macro_use]
 extern crate pest_derive;
@@ -157,10 +157,15 @@ fn find_roots(
     f: &Func,
     g: &Func,
     height: u32,
+    verbose: bool,
 ) -> Vec<Complex<f64>> {
     let width = calculate_width((x1, y1), (x2, y2), height);
 
-    let counter = count_pixels("Поиск корней: ", (height * width) as usize);
+    let counter = if verbose {
+        Some(count_pixels("Поиск корней: ", (height * width) as usize))
+    } else {
+        None
+    };
 
     uniq_vec(
         (0..height)
@@ -169,7 +174,9 @@ fn find_roots(
                 uniq_vec(
                     (0..width)
                         .filter_map(|j| {
-                            counter.fetch_add(1, Ordering::Relaxed);
+                            if let Some(ref counter) = counter {
+                                counter.fetch_add(1, Ordering::Relaxed);
+                            }
                             find_root(
                                 complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
                                 f,
@@ -228,15 +235,23 @@ fn newton(
     g: &Func,
     palette: Option<&(Vec<Color>, Color)>,
     height: u32,
+    verbose: bool,
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width((x1, y1), (x2, y2), height);
     let roots = if palette.is_some() {
-        Some(find_roots((x1, y1), (x2, y2), f, g, height))
+        Some(find_roots((x1, y1), (x2, y2), f, g, height, verbose))
     } else {
         None
     };
 
-    let counter = count_pixels("Генерация фрактала: ", (height * width) as usize);
+    let counter = if verbose {
+        Some(count_pixels(
+            "Генерация фрактала: ",
+            (height * width) as usize,
+        ))
+    } else {
+        None
+    };
 
     (
         width,
@@ -253,7 +268,9 @@ fn newton(
                             g,
                             palette,
                         );
-                        counter.fetch_add(1, Ordering::Relaxed);
+                        if let Some(ref counter) = counter {
+                            counter.fetch_add(1, Ordering::Relaxed);
+                        }
                         vec![r, g, b]
                     })
                     .flatten()
@@ -333,12 +350,18 @@ fn main() -> Result<(), std::io::Error> {
                 .takes_value(true)
                 .validator(validate_palette),
         )
+        .arg(
+            Arg::with_name("verbose")
+                .short("v")
+                .help("Утсанавливает подробный режим"),
+        )
         .get_matches();
 
     let height = matches.value_of("height").unwrap().trim().parse().unwrap();
     let path = matches.value_of("output").unwrap();
     let f = parse_func(&matches.value_of("function").unwrap()).unwrap();
     let (start, end) = get_coord(&matches);
+    let verbose = matches.is_present("verbose");
     let palette = match matches.value_of("palette") {
         Some(palette_str) => Some(get_palette(palette_str)),
         None => None,
@@ -348,15 +371,19 @@ fn main() -> Result<(), std::io::Error> {
 
     let g = f.clone().diff();
 
-    let (w, h, v) = newton(start, end, &f, &g, palette.as_ref(), height);
+    let (w, h, v) = newton(start, end, &f, &g, palette.as_ref(), height, verbose);
 
-    eprintln!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());
+    if verbose {
+        eprintln!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());
+    }
 
     let time = std::time::SystemTime::now();
 
     write_png(&path, (w, h), &v)?;
 
-    eprintln!("Изображение записано за {:?}", time.elapsed().unwrap());
+    if verbose {
+        eprintln!("Изображение записано за {:?}", time.elapsed().unwrap());
+    }
 
     Ok(())
 }
