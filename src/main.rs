@@ -216,7 +216,7 @@ fn count_pixels(intro: &'static str, max: usize) -> Arc<AtomicUsize> {
         while counter.load(Ordering::Relaxed) < max {
             let count = counter.load(Ordering::Relaxed);
             eprintln!(
-                "{} {:3.2}% ({:10}/{:10})",
+                "{} {:5.2}% ({:10}/{:10})",
                 intro,
                 100.0 * count as f64 / max as f64,
                 count,
