@@ -108,18 +108,17 @@ fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
     });
 }
 
-fn find_root_func(x: Complex<f64>, f: &Func, g: &Func, d: u16) -> (Option<Complex<f64>>, u16) {
-    if f.calc(x).norm() < PRECISION {
-        (Some(x), d)
-    } else if d == ROOT_ITER {
-        (None, d)
-    } else {
-        find_root_func(x - f.calc(x) / g.calc(x), f, g, d + 1)
+fn find_root(mut x: Complex<f64>, f: &Func, g: &Func) -> (Option<Complex<f64>>, u16) {    
+    match (0..ROOT_ITER)
+        .map(|i| {
+            let t = x;
+            x = t - f.calc(t) / g.calc(t);
+            (i, f.calc(t))
+        })
+        .find(|(_, x)| x.norm() < PRECISION) {
+        Some((i, _)) => (Some(x), i),
+        None => (None, ROOT_ITER)
     }
-}
-
-fn find_root(x: Complex<f64>, f: &Func, g: &Func) -> (Option<Complex<f64>>, u16) {
-    find_root_func(x, f, g, 0)
 }
 
 fn uniq(x: &mut Option<Complex<f64>>, n: Complex<f64>) -> Option<Complex<f64>> {
