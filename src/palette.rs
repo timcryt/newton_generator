@@ -37,11 +37,11 @@ pub fn get_palette(palette_string: &str) -> (Vec<Color>, Color) {
         |pair: Pair<Rule>| match pair.as_rule() {
             Rule::color => {
                 let v = hex::decode(pair.into_inner().as_str()).unwrap();
-                (vec![(v[0], v[1], v[2], false)], None)
+                (vec![(Color(v[0], v[1], v[2]), false)], None)
             }
             Rule::hidden_color => {
                 let v = hex::decode(pair.into_inner().as_str()).unwrap();
-                (vec![(v[0], v[1], v[2], true)], None)
+                (vec![(Color(v[0], v[1], v[2]), true)], None)
             }
 
             _ => unreachable!(),
@@ -50,8 +50,8 @@ pub fn get_palette(palette_string: &str) -> (Vec<Color>, Color) {
             Rule::simple_separator => (lhs.0.into_iter().chain(rhs.0.into_iter()).collect(), None),
             Rule::full_separator => {
                 let (lf, fr, len) = (
-                    lhs.0[lhs.0.len() - 1],
-                    rhs.0[0],
+                    lhs.0[lhs.0.len() - 1].0,
+                    rhs.0[0].0,
                     op.into_inner().as_str().parse::<u16>().unwrap(),
                 );
                 (
@@ -60,15 +60,17 @@ pub fn get_palette(palette_string: &str) -> (Vec<Color>, Color) {
                         .copied()
                         .chain((1..=len).map(|i| {
                             (
-                                (fr.0 as u16 * i / (len + 1)
-                                    + lf.0 as u16 * (len - i + 1) / (len + 1))
-                                    as u8,
-                                (fr.1 as u16 * i / (len + 1)
-                                    + lf.1 as u16 * (len - i + 1) / (len + 1))
-                                    as u8,
-                                (fr.2 as u16 * i / (len + 1)
-                                    + lf.2 as u16 * (len - i + 1) / (len + 1))
-                                    as u8,
+                                Color(
+                                    (fr.0 as u16 * i / (len + 1)
+                                        + lf.0 as u16 * (len - i + 1) / (len + 1))
+                                        as u8,
+                                    (fr.1 as u16 * i / (len + 1)
+                                        + lf.1 as u16 * (len - i + 1) / (len + 1))
+                                        as u8,
+                                    (fr.2 as u16 * i / (len + 1)
+                                        + lf.2 as u16 * (len - i + 1) / (len + 1))
+                                        as u8,
+                                ),
                                 false,
                             )
                         }))
@@ -84,11 +86,11 @@ pub fn get_palette(palette_string: &str) -> (Vec<Color>, Color) {
     (
         palette
             .into_iter()
-            .filter_map(|(r, g, b, h)| if h { None } else { Some((r, g, b)) })
+            .filter_map(|(c, h)| if h { None } else { Some(c) })
             .collect(),
         match defcol {
-            None => (0, 0, 0),
-            Some((r, g, b, _)) => (r, g, b),
+            None => Color(0, 0, 0),
+            Some((c, _)) => c,
         },
     )
 }

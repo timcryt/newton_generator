@@ -16,7 +16,29 @@ extern crate pest_derive;
 #[macro_use]
 extern crate lazy_static;
 
-pub type Color = (u8, u8, u8);
+#[derive(Clone, Copy)]
+pub struct Color(u8, u8, u8);
+
+impl std::ops::Mul<f64> for Color {
+    type Output = Color;
+
+    fn mul(self, other: f64) -> Color {
+        debug_assert!(other >= 0.0 && other <= 1.0);
+        Color(
+            (self.0 as f64 * other).round() as u8,
+            (self.1 as f64 * other).round() as u8,
+            (self.2 as f64 * other).round() as u8,
+        )
+    }
+}
+
+impl std::ops::Add<Color> for Color {
+    type Output = Color;
+
+    fn add(self, other: Color) -> Color {
+        Color(self.0 + other.0, self.1 + other.1, self.2 + other.2)
+    }
+}
 
 mod coord;
 mod func;
@@ -39,7 +61,7 @@ fn find_newton(
     f: &Func,
     f_diff: &Func,
     palette: Option<&(Vec<Color>, Color)>,
-) -> (u8, u8, u8) {
+) -> Color {
     let (root, dep) = find_root(x, f, f_diff);
 
     match root {
@@ -47,7 +69,7 @@ fn find_newton(
             if let Some((_, defcol)) = palette {
                 *defcol
             } else {
-                (0, 0, 0)
+                Color(0, 0, 0)
             }
         }
         Some(root) => match palette {
@@ -62,11 +84,7 @@ fn find_newton(
                 None => *defcol,
             },
             None => {
-                let c = 255
-                    - (dep as f64 / ROOT_ITER as f64 * std::u8::MAX as f64 * CONTRAST)
-                        .floor()
-                        .min(255.0) as u8;
-                (c, c, c)
+                Color(255, 255, 255) * (1.0 - dep as f64 / ROOT_ITER as f64 * CONTRAST).max(0.0)
             }
         },
     }
@@ -108,16 +126,17 @@ fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
     });
 }
 
-fn find_root(mut x: Complex<f64>, f: &Func, g: &Func) -> (Option<Complex<f64>>, u16) {    
+fn find_root(mut x: Complex<f64>, f: &Func, g: &Func) -> (Option<Complex<f64>>, u16) {
     match (0..ROOT_ITER)
         .map(|i| {
             let t = x;
             x = t - f.calc(t) / g.calc(t);
             (i, f.calc(t))
         })
-        .find(|(_, x)| x.norm() < PRECISION) {
+        .find(|(_, x)| x.norm() < PRECISION)
+    {
         Some((i, _)) => (Some(x), i),
-        None => (None, ROOT_ITER)
+        None => (None, ROOT_ITER),
     }
 }
 
@@ -260,7 +279,7 @@ fn newton(
             .map(|i| {
                 (0..width)
                     .map(|j| {
-                        let (r, g, b) = find_newton(
+                        let Color(r, g, b) = find_newton(
                             complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
                             &roots,
                             f,
