@@ -190,7 +190,7 @@ fn find_roots(
     uniq_vec(
         (0..height)
             .into_par_iter()
-            .map(|i| {
+            .flat_map(|i| {
                 uniq_vec(
                     (0..width)
                         .filter_map(|j| {
@@ -208,7 +208,6 @@ fn find_roots(
                 )
                 .into_par_iter()
             })
-            .flatten()
             .collect::<Vec<_>>(),
     )
 }
@@ -254,22 +253,35 @@ fn get_shadow(
     f: &Func,
     g: &Func,
     height: u32,
-    _verbose: bool,
+    verbose: bool,
 ) -> HashMap<(u32, u32), u32> {
     let width = calculate_width(z1, z2, height);
 
+    let counter = if verbose {
+        Some(count_pixels("Рассчёт теней: ", (height * width) as usize))
+    } else {
+        None
+    };
+
     let mut buf: VecDeque<_> = (0..height)
+        .into_par_iter()
         .flat_map(|i| {
-            (0..width).filter_map(move |j| {
-                if find_root(complex_by_coord((i, height), (j, width), z1, z2), f, g)
-                    .0
-                    .is_none()
-                {
-                    Some(((i, j), 0))
-                } else {
-                    None
-                }
-            })
+            (0..width)
+                .filter_map(|j| {
+                    if let Some(ref counter) = counter.as_ref() {
+                        counter.fetch_add(1, Ordering::Relaxed);
+                    }
+                    if find_root(complex_by_coord((i, height), (j, width), z1, z2), f, g)
+                        .0
+                        .is_none()
+                    {
+                        Some(((i, j), 0))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .into_par_iter()
         })
         .collect();
 
@@ -335,9 +347,9 @@ fn newton(
         height,
         (0..height)
             .into_par_iter()
-            .map(|i| {
+            .flat_map(|i| {
                 (0..width)
-                    .map(|j| {
+                    .flat_map(|j| {
                         let Color(r, g, b) = find_newton(
                             complex_by_coord((i, height), (j, width), z1, z2),
                             &roots,
@@ -356,11 +368,9 @@ fn newton(
                         }
                         vec![r, g, b]
                     })
-                    .flatten()
                     .collect::<Vec<_>>()
                     .into_par_iter()
             })
-            .flatten()
             .collect::<Vec<_>>(),
     )
 }
