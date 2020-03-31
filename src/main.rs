@@ -2,6 +2,7 @@ use clap::{App, Arg};
 use num_complex::Complex;
 use rayon::prelude::*;
 use std::cmp::max;
+use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
@@ -9,7 +10,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use std::collections::{HashMap, VecDeque};
 
 #[macro_use]
 extern crate pest_derive;
@@ -248,45 +248,51 @@ fn count_pixels(intro: &'static str, max: usize) -> Arc<AtomicUsize> {
     counter_clone
 }
 
-fn get_shadow((x1, y1): (f64, f64), (x2, y2): (f64, f64), f: &Func, g: &Func, height: u32, _verbose: bool) -> HashMap<(u32, u32), u32> {
-    let width = calculate_width((x1, y1), (x2, y2), height);
-    
+fn get_shadow(
+    z1: (f64, f64),
+    z2: (f64, f64),
+    f: &Func,
+    g: &Func,
+    height: u32,
+    _verbose: bool,
+) -> HashMap<(u32, u32), u32> {
+    let width = calculate_width(z1, z2, height);
+
     let mut buf: VecDeque<_> = (0..height)
-        .flat_map(|i|
-            (0..width)
-                .filter_map(move |j|
-                    if let None = find_root(complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)), f, g).0 {
-                        Some(((i, j), 0))
-                    } else {
-                        None
-                    }
-                )
-        )
+        .flat_map(|i| {
+            (0..width).filter_map(move |j| {
+                if find_root(complex_by_coord((i, height), (j, width), z1, z2), f, g)
+                    .0
+                    .is_none()
+                {
+                    Some(((i, j), 0))
+                } else {
+                    None
+                }
+            })
+        })
         .collect();
 
     let mut res: HashMap<(u32, u32), u32> = buf.iter().copied().collect();
 
-    while buf.len() > 0 {
-        //println!("{} {}", buf.len(), res.len());
-
-        let ((i, j), d) = buf.pop_back().unwrap();
-        
+    while !buf.is_empty() {
+        let ((i, j), dist) = buf.pop_back().unwrap();
 
         if i > 0 && !res.contains_key(&(i - 1, j)) {
-            buf.push_front(((i - 1, j), d + 1));
-            res.insert((i - 1, j), d + 1);     
+            buf.push_front(((i - 1, j), dist + 1));
+            res.insert((i - 1, j), dist + 1);
         }
         if j > 0 && !res.contains_key(&(i, j - 1)) {
-            buf.push_front(((i, j - 1), d + 1));
-            res.insert((i, j - 1), d + 1);
+            buf.push_front(((i, j - 1), dist + 1));
+            res.insert((i, j - 1), dist + 1);
         }
         if i < height - 1 && !res.contains_key(&(i + 1, j)) {
-            buf.push_front(((i + 1, j), d + 1));
-            res.insert((i + 1, j), d + 1);
+            buf.push_front(((i + 1, j), dist + 1));
+            res.insert((i + 1, j), dist + 1);
         }
         if j < width - 1 && !res.contains_key(&(i, j + 1)) {
-            buf.push_front(((i, j + 1), d + 1));
-            res.insert((i, j + 1), d + 1);
+            buf.push_front(((i, j + 1), dist + 1));
+            res.insert((i, j + 1), dist + 1);
         }
     }
 
@@ -294,24 +300,23 @@ fn get_shadow((x1, y1): (f64, f64), (x2, y2): (f64, f64), f: &Func, g: &Func, he
 }
 
 fn newton(
-    (x1, y1): (f64, f64),
-    (x2, y2): (f64, f64),
-    f: &Func,
-    g: &Func,
+    z1: (f64, f64),
+    z2: (f64, f64),
+    (f, g): (&Func, &Func),
     palette: Option<&(Vec<Color>, Color)>,
     needs_shadow: Option<f64>,
     height: u32,
     verbose: bool,
 ) -> (u32, u32, Vec<u8>) {
-    let width = calculate_width((x1, y1), (x2, y2), height);
+    let width = calculate_width(z1, z2, height);
     let roots = if palette.is_some() {
-        Some(find_roots((x1, y1), (x2, y2), f, g, height, verbose))
+        Some(find_roots(z1, z2, f, g, height, verbose))
     } else {
         None
     };
 
     let shadow = if needs_shadow.is_some() {
-        get_shadow((x1, y1), (x2, y2), f, g, height, verbose)
+        get_shadow(z1, z2, f, g, height, verbose)
     } else {
         HashMap::new()
     };
@@ -334,15 +339,17 @@ fn newton(
                 (0..width)
                     .map(|j| {
                         let Color(r, g, b) = find_newton(
-                            complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
+                            complex_by_coord((i, height), (j, width), z1, z2),
                             &roots,
                             f,
                             g,
                             palette,
                             match shadow.get(&(i, j)) {
-                                Some(&x) => (-(x as f64) * needs_shadow.unwrap() / height as f64).exp(),
+                                Some(&x) => {
+                                    (-(x as f64) * needs_shadow.unwrap() / height as f64).exp()
+                                }
                                 None => 0.0,
-                            }
+                            },
                         );
                         if let Some(ref counter) = counter {
                             counter.fetch_add(1, Ordering::Relaxed);
@@ -432,12 +439,10 @@ fn main() -> Result<(), std::io::Error> {
                 .requires("palette")
                 .help("Включает режим тени")
                 .takes_value(true)
-                .validator(|x| 
-                    match x.trim().parse::<f64>() { 
-                        Ok(x) if x > 0.0 => Ok(()),
-                        _ => Err("Параметром должно быть положительным числом".to_string()),
-                    }
-                )
+                .validator(|x| match x.trim().parse::<f64>() {
+                    Ok(x) if x > 0.0 => Ok(()),
+                    _ => Err("Параметром должно быть положительным числом".to_string()),
+                }),
         )
         .arg(
             Arg::with_name("verbose")
@@ -455,13 +460,23 @@ fn main() -> Result<(), std::io::Error> {
         Some(palette_str) => Some(get_palette(palette_str)),
         None => None,
     };
-    let shadow = matches.value_of("shadow").map(|x| x.trim().parse().unwrap());
+    let shadow = matches
+        .value_of("shadow")
+        .map(|x| x.trim().parse().unwrap());
 
     let time = std::time::SystemTime::now();
 
     let g = f.clone().diff();
 
-    let (w, h, v) = newton(start, end, &f, &g, palette.as_ref(), shadow, height, verbose);
+    let (w, h, v) = newton(
+        start,
+        end,
+        (&f, &g),
+        palette.as_ref(),
+        shadow,
+        height,
+        verbose,
+    );
 
     if verbose {
         eprintln!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());
