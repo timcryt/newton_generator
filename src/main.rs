@@ -319,6 +319,7 @@ fn newton(
     needs_shadow: Option<f64>,
     height: u32,
     verbose: bool,
+    negate: bool,
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width(z1, z2, height);
     let roots = if palette.is_some() {
@@ -366,7 +367,11 @@ fn newton(
                         if let Some(ref counter) = counter {
                             counter.fetch_add(1, Ordering::Relaxed);
                         }
-                        vec![r, g, b]
+                        if negate {
+                            vec![255 - r, 255 - g, 255 - b]
+                        } else {
+                            vec![r, g, b]
+                        }
                     })
                     .collect::<Vec<_>>()
                     .into_par_iter()
@@ -459,6 +464,12 @@ fn main() -> Result<(), std::io::Error> {
                 .short("v")
                 .help("Утсанавливает подробный режим"),
         )
+        .arg(
+            Arg::with_name("negate")
+                .short("n")
+                .conflicts_with("palette")
+                .help("Инвертирует цвета")
+        )
         .get_matches();
 
     let height = matches.value_of("height").unwrap().trim().parse().unwrap();
@@ -473,6 +484,7 @@ fn main() -> Result<(), std::io::Error> {
     let shadow = matches
         .value_of("shadow")
         .map(|x| x.trim().parse().unwrap());
+    let negate = matches.is_present("negate");
 
     let time = std::time::Instant::now();
 
@@ -486,6 +498,7 @@ fn main() -> Result<(), std::io::Error> {
         shadow,
         height,
         verbose,
+        negate,
     );
 
     if verbose {
