@@ -474,7 +474,7 @@ fn main() -> Result<(), std::io::Error> {
         .value_of("shadow")
         .map(|x| x.trim().parse().unwrap());
 
-    let time = std::time::SystemTime::now();
+    let time = std::time::Instant::now();
 
     let g = f.clone().diff();
 
@@ -489,15 +489,15 @@ fn main() -> Result<(), std::io::Error> {
     );
 
     if verbose {
-        eprintln!("Изображение сгенерировано за {:?}", time.elapsed().unwrap());
+        eprintln!("Изображение сгенерировано за {:?}", time.elapsed());
     }
 
-    let time = std::time::SystemTime::now();
+    let time = std::time::Instant::now();
 
     write_png(&path, (w, h), &v)?;
 
     if verbose {
-        eprintln!("Изображение записано за {:?}", time.elapsed().unwrap());
+        eprintln!("Изображение записано за {:?}", time.elapsed());
     }
 
     Ok(())
