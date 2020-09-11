@@ -283,6 +283,9 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
     PREC_CLIMBER.climb(
         expression,
         |pair: Pair<Rule>| match pair.as_rule() {
+            Rule::negated_term => {
+                Func::Sub(Box::new(Func::Num(0.0)), Box::new(eval_func(pair.into_inner())))
+            }
             Rule::arg => Func::Arg,
             Rule::num => Func::Num(pair.as_str().parse::<f64>().unwrap()),
             Rule::pi => Func::Num(std::f64::consts::PI),
