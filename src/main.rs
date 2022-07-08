@@ -93,6 +93,20 @@ fn find_newton(
 }
 
 fn sort_float(v: &mut Vec<Complex<f64>>) {
+    let mut i = 0;
+    let mut j = 0;
+    while i < v.len() {
+        if !v[i].re.is_nan() && !v[i].im.is_nan() {
+            v[j] = v[i];
+            j += 1;
+        }
+        i += 1;
+    }
+
+    v.resize(j, Complex::default());
+
+    //println!("{:?}", v);
+
     v.sort_by(|a, b| {
         if a.re.partial_cmp(&b.re).unwrap() == std::cmp::Ordering::Equal
             || (a.re - b.re).abs() < ROOT_PRECISION
@@ -187,7 +201,7 @@ fn find_roots(
         None
     };
 
-    uniq_vec(
+    let mut roots = uniq_vec(
         (0..height)
             .into_par_iter()
             .flat_map(|i| {
@@ -209,7 +223,11 @@ fn find_roots(
                 .into_par_iter()
             })
             .collect::<Vec<_>>(),
-    )
+    );
+
+    sort_float(&mut roots);
+
+    roots
 }
 
 fn complex_by_coord(
