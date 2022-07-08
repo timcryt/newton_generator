@@ -474,13 +474,13 @@ fn main() -> Result<(), std::io::Error> {
                 .takes_value(true)
                 .validator(|x| match x.trim().parse::<f64>() {
                     Ok(x) if x > 0.0 => Ok(()),
-                    _ => Err("Параметром должно быть положительным числом".to_string()),
+                    _ => Err("Параметр должен быть положительным числом".to_string()),
                 }),
         )
         .arg(
             Arg::with_name("verbose")
                 .short("v")
-                .help("Утсанавливает подробный режим"),
+                .help("Устанавливает подробный режим"),
         )
         .arg(
             Arg::with_name("negate")
