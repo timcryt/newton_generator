@@ -517,7 +517,7 @@ fn main() -> Result<(), std::io::Error> {
 
         Command::new("sh")
             .arg("-c")
-            .arg("gcc -O3 -fPIC -c jit.c -lm && gcc -shared -o jit.so jit.o")
+            .arg("gcc -O3 -fPIC -c jit.c && gcc -shared -o jit.so jit.o -lm")
             .output()
             .unwrap();
 
