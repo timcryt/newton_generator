@@ -5,7 +5,9 @@ use std::cmp::max;
 use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::BufWriter;
+use std::io::Write;
 use std::path::Path;
+use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -59,12 +61,10 @@ const PIXEL_COUNT_FREQ: Duration = Duration::from_millis(1000);
 fn find_newton(
     x: Complex<f64>,
     roots: &Option<Vec<Complex<f64>>>,
-    f: &Func,
-    f_diff: &Func,
     palette: Option<&(Vec<Color>, Color)>,
     shadow: f64,
 ) -> Color {
-    let (root, dep) = find_root(x, f, f_diff);
+    let (root, dep) = find_root(x);
 
     match root {
         None => {
@@ -142,12 +142,16 @@ fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
     });
 }
 
-fn find_root(mut x: Complex<f64>, f: &Func, g: &Func) -> (Option<Complex<f64>>, u16) {
+fn find_root(mut x: Complex<f64>) -> (Option<Complex<f64>>, u16) {
     match (0..ROOT_ITER)
         .map(|i| {
             let t = x;
-            x = t - f.calc(t) / g.calc(t);
-            (i, f.calc(t))
+         
+            let fc = unsafe { F_FUNC(t) };
+            let gc = unsafe { G_FUNC(t) };
+
+            x = t - fc / gc;
+            (i, fc)
         })
         .find(|(_, x)| x.norm() < PRECISION)
     {
@@ -188,8 +192,6 @@ fn uniq_vec(mut v: Vec<Complex<f64>>) -> Vec<Complex<f64>> {
 fn find_roots(
     (x1, y1): (f64, f64),
     (x2, y2): (f64, f64),
-    f: &Func,
-    g: &Func,
     height: u32,
     verbose: bool,
 ) -> Vec<Complex<f64>> {
@@ -213,8 +215,6 @@ fn find_roots(
                             }
                             find_root(
                                 complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
-                                f,
-                                g,
                             )
                             .0
                         })
@@ -268,8 +268,6 @@ fn count_pixels(intro: &'static str, max: usize) -> Arc<AtomicUsize> {
 fn get_shadow(
     z1: (f64, f64),
     z2: (f64, f64),
-    f: &Func,
-    g: &Func,
     height: u32,
     verbose: bool,
 ) -> HashMap<(u32, u32), u32> {
@@ -289,7 +287,7 @@ fn get_shadow(
                     if let Some(ref counter) = counter.as_ref() {
                         counter.fetch_add(1, Ordering::Relaxed);
                     }
-                    if find_root(complex_by_coord((i, height), (j, width), z1, z2), f, g)
+                    if find_root(complex_by_coord((i, height), (j, width), z1, z2))
                         .0
                         .is_none()
                     {
@@ -332,7 +330,6 @@ fn get_shadow(
 fn newton(
     z1: (f64, f64),
     z2: (f64, f64),
-    (f, g): (&Func, &Func),
     palette: Option<&(Vec<Color>, Color)>,
     needs_shadow: Option<f64>,
     height: u32,
@@ -341,13 +338,13 @@ fn newton(
 ) -> (u32, u32, Vec<u8>) {
     let width = calculate_width(z1, z2, height);
     let roots = if palette.is_some() {
-        Some(find_roots(z1, z2, f, g, height, verbose))
+        Some(find_roots(z1, z2, height, verbose))
     } else {
         None
     };
 
     let shadow = if needs_shadow.is_some() {
-        get_shadow(z1, z2, f, g, height, verbose)
+        get_shadow(z1, z2, height, verbose)
     } else {
         HashMap::new()
     };
@@ -372,8 +369,6 @@ fn newton(
                         let Color(r, g, b) = find_newton(
                             complex_by_coord((i, height), (j, width), z1, z2),
                             &roots,
-                            f,
-                            g,
                             palette,
                             match shadow.get(&(i, j)) {
                                 Some(&x) => {
@@ -407,11 +402,16 @@ fn write_png(path: &str, (w, h): (u32, u32), data: &[u8]) -> Result<(), std::io:
     encoder.set_color(png::ColorType::RGB);
     encoder.set_depth(png::BitDepth::Eight);
     let mut writer = encoder.write_header()?;
-
     writer.write_image_data(data)?;
 
     Ok(())
 }
+
+static mut LIB_FUNC: Option<libloading::Library> = None;
+
+static mut F_FUNC: libloading::Symbol<unsafe extern fn(Complex<f64>) -> Complex<f64>> = unsafe { std::mem::transmute(0usize) };
+static mut G_FUNC: libloading::Symbol<unsafe extern fn(Complex<f64>) -> Complex<f64>> = unsafe { std::mem::transmute(0usize) };
+
 
 fn main() -> Result<(), std::io::Error> {
     let matches = App::new("Фракталы Ньютона")
@@ -504,14 +504,45 @@ fn main() -> Result<(), std::io::Error> {
         .map(|x| x.trim().parse().unwrap());
     let negate = matches.is_present("negate");
 
+    let g = f.clone().diff();
+
     let time = std::time::Instant::now();
 
-    let g = f.clone().diff();
+    {
+        let mut file = File::create("jit.c").unwrap();
+        writeln!(file, "{}", f.genc("func")).unwrap();
+        writeln!(file, "{}", g.genc("diff")).unwrap();
+        std::mem::drop(file);
+
+        Command::new("sh")
+            .arg("-c")
+            .arg("gcc -O3 -fPIC -c jit.c -lm && gcc -shared -o jit.so jit.o")
+            .output()
+            .unwrap();
+
+        unsafe {
+            LIB_FUNC = Some(libloading::Library::new("./jit.so").unwrap());
+
+            F_FUNC = LIB_FUNC.as_mut().unwrap().get(b"func").unwrap();
+            G_FUNC = LIB_FUNC.as_mut().unwrap().get(b"diff").unwrap();
+        };
+    }
+
+    Command::new("sh")
+        .arg("-c")
+        .arg("rm jit.c jit.o jit.so")
+        .output()
+        .unwrap();
+
+    if verbose {
+        eprintln!("Функции скомпилированы за {:?}", time.elapsed());
+    }
+
+    let time = std::time::Instant::now();
 
     let (w, h, v) = newton(
         start,
         end,
-        (&f, &g),
         palette.as_ref(),
         shadow,
         height,

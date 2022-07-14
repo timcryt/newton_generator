@@ -28,6 +28,37 @@ pub enum Func {
 }
 
 impl Func {
+    pub fn genc(&self, fun_name: &str) -> String {
+        format!(r#"
+#include <complex.h>
+
+double complex {}(double complex x) {{
+    return {};
+}}
+
+"#, fun_name, self.gen_inner())
+    }
+
+    fn gen_inner(&self) -> String {
+        match self {
+            Func::Arg => "x".to_owned(),
+            Func::Num(n) => n.to_string(),
+            Func::Im => "I".to_owned(),
+            Func::Add(a, b) => format!("({}+{})", a.gen_inner(), b.gen_inner()),
+            Func::Sub(a, b) => format!("({}-{})", a.gen_inner(), b.gen_inner()),
+            Func::Mul(a, b) => format!("({}*{})", a.gen_inner(), b.gen_inner()),
+            Func::Div(a, b) => format!("({}/{})", a.gen_inner(), b.gen_inner()),
+            Func::PowI(a, n) => format!("cpow({}, {})", a.gen_inner(), n),
+            Func::PowC(a, n) => format!("cpow({}, {})", a.gen_inner(), n),
+            Func::Sqrt(a) => format!("csqrt({})", a.gen_inner()),
+            Func::Exp(a) => format!("cexp({})", a.gen_inner()),
+            Func::Ln(a) => format!("clog({})", a.gen_inner()),
+            Func::Sin(a) => format!("csin({})", a.gen_inner()),
+            Func::Cos(a) => format!("ccos({})", a.gen_inner()),
+            Func::Tan(a) => format!("ctan({})", a.gen_inner()),
+        }
+    }
+
     pub fn calc(&self, x: Complex<f64>) -> Complex<f64> {
         match self {
             Func::Arg => x,
