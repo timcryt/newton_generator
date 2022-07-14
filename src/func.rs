@@ -1,5 +1,3 @@
-use num_complex::Complex;
-
 use pest::iterators::{Pair, Pairs};
 use pest::prec_climber::*;
 use pest::Parser;
@@ -60,26 +58,6 @@ double complex {}(double complex x) {{
             Func::Sin(a) => format!("csin({})", a.gen_inner()),
             Func::Cos(a) => format!("ccos({})", a.gen_inner()),
             Func::Tan(a) => format!("ctan({})", a.gen_inner()),
-        }
-    }
-
-    pub fn calc(&self, x: Complex<f64>) -> Complex<f64> {
-        match self {
-            Func::Arg => x,
-            Func::Num(n) => Complex { re: *n, im: 0.0 },
-            Func::Im => Complex { re: 0.0, im: 1.0 },
-            Func::Add(a, b) => a.calc(x) + b.calc(x),
-            Func::Sub(a, b) => a.calc(x) - b.calc(x),
-            Func::Mul(a, b) => a.calc(x) * b.calc(x),
-            Func::Div(a, b) => a.calc(x) / b.calc(x),
-            Func::PowI(a, n) => a.calc(x).powi(*n),
-            Func::PowC(a, n) => a.calc(x).powf(*n),
-            Func::Sqrt(a) => a.calc(x).sqrt(),
-            Func::Exp(a) => a.calc(x).exp(),
-            Func::Ln(a) => a.calc(x).ln(),
-            Func::Sin(a) => a.calc(x).sin(),
-            Func::Cos(a) => a.calc(x).cos(),
-            Func::Tan(a) => a.calc(x).tan(),
         }
     }
 
