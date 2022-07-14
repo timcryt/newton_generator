@@ -26,7 +26,7 @@ impl std::ops::Mul<f64> for Color {
     type Output = Color;
 
     fn mul(self, other: f64) -> Color {
-        debug_assert!(other >= 0.0 && other <= 1.0);
+        debug_assert!((0.0..=1.0).contains(&other));
         Color(
             (self.0 as f64 * other).round() as u8,
             (self.1 as f64 * other).round() as u8,
@@ -124,7 +124,7 @@ fn sort_float(v: &mut Vec<Complex<f64>>) {
     });
 }
 
-fn sort_float_rev(v: &mut Vec<Complex<f64>>) {
+fn sort_float_rev(v: &mut [Complex<f64>]) {
     v.sort_by(|a, b| {
         if a.im.partial_cmp(&b.im).unwrap() == std::cmp::Ordering::Equal
             || (a.im - b.im).abs() < ROOT_PRECISION
@@ -146,7 +146,7 @@ fn find_root(mut x: Complex<f64>) -> (Option<Complex<f64>>, u16) {
     match (0..ROOT_ITER)
         .map(|i| {
             let t = x;
-         
+
             let fc = unsafe { F_FUNC(t) };
             let gc = unsafe { G_FUNC(t) };
 
@@ -213,9 +213,12 @@ fn find_roots(
                             if let Some(ref counter) = counter {
                                 counter.fetch_add(1, Ordering::Relaxed);
                             }
-                            find_root(
-                                complex_by_coord((i, height), (j, width), (x1, y1), (x2, y2)),
-                            )
+                            find_root(complex_by_coord(
+                                (i, height),
+                                (j, width),
+                                (x1, y1),
+                                (x2, y2),
+                            ))
                             .0
                         })
                         .collect::<Vec<_>>(),
@@ -284,7 +287,7 @@ fn get_shadow(
         .flat_map(|i| {
             (0..width)
                 .filter_map(|j| {
-                    if let Some(ref counter) = counter.as_ref() {
+                    if let Some(counter) = counter.as_ref() {
                         counter.fetch_add(1, Ordering::Relaxed);
                     }
                     if find_root(complex_by_coord((i, height), (j, width), z1, z2))
@@ -409,9 +412,10 @@ fn write_png(path: &str, (w, h): (u32, u32), data: &[u8]) -> Result<(), std::io:
 
 static mut LIB_FUNC: Option<libloading::Library> = None;
 
-static mut F_FUNC: libloading::Symbol<unsafe extern fn(Complex<f64>) -> Complex<f64>> = unsafe { std::mem::transmute(0usize) };
-static mut G_FUNC: libloading::Symbol<unsafe extern fn(Complex<f64>) -> Complex<f64>> = unsafe { std::mem::transmute(0usize) };
-
+static mut F_FUNC: libloading::Symbol<unsafe extern "C" fn(Complex<f64>) -> Complex<f64>> =
+    unsafe { std::mem::transmute(0usize) };
+static mut G_FUNC: libloading::Symbol<unsafe extern "C" fn(Complex<f64>) -> Complex<f64>> =
+    unsafe { std::mem::transmute(0usize) };
 
 fn main() -> Result<(), std::io::Error> {
     let matches = App::new("Фракталы Ньютона")
@@ -486,19 +490,16 @@ fn main() -> Result<(), std::io::Error> {
             Arg::with_name("negate")
                 .short("n")
                 .conflicts_with("palette")
-                .help("Инвертирует цвета")
+                .help("Инвертирует цвета"),
         )
         .get_matches();
 
     let height = matches.value_of("height").unwrap().trim().parse().unwrap();
     let path = matches.value_of("output").unwrap();
-    let f = parse_func(&matches.value_of("function").unwrap()).unwrap();
+    let f = parse_func(matches.value_of("function").unwrap()).unwrap();
     let (start, end) = get_coord(&matches);
     let verbose = matches.is_present("verbose");
-    let palette = match matches.value_of("palette") {
-        Some(palette_str) => Some(get_palette(palette_str)),
-        None => None,
-    };
+    let palette = matches.value_of("palette").map(get_palette);
     let shadow = matches
         .value_of("shadow")
         .map(|x| x.trim().parse().unwrap());
@@ -556,7 +557,7 @@ fn main() -> Result<(), std::io::Error> {
 
     let time = std::time::Instant::now();
 
-    write_png(&path, (w, h), &v)?;
+    write_png(path, (w, h), &v)?;
 
     if verbose {
         eprintln!("Изображение записано за {:?}", time.elapsed());
