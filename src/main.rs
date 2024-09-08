@@ -402,7 +402,7 @@ fn write_png(path: &str, (w, h): (u32, u32), data: &[u8]) -> Result<(), std::io:
     let wr = &mut BufWriter::new(file);
 
     let mut encoder = png::Encoder::new(wr, w, h);
-    encoder.set_color(png::ColorType::RGB);
+    encoder.set_color(png::ColorType::Rgb);
     encoder.set_depth(png::BitDepth::Eight);
     let mut writer = encoder.write_header()?;
     writer.write_image_data(data)?;
