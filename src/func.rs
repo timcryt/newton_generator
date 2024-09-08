@@ -1,5 +1,5 @@
-use pest::iterators::{Pair, Pairs};
-use pest::prec_climber::*;
+use pest::iterators::Pairs;
+use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
 
 #[derive(Parser)]
@@ -280,22 +280,16 @@ impl std::ops::Div<Func> for f64 {
 }
 
 lazy_static! {
-    static ref PREC_CLIMBER: PrecClimber<Rule> = {
-        use Assoc::*;
-        use Rule::*;
-
-        PrecClimber::new(vec![
-            Operator::new(add, Left) | Operator::new(subtract, Left),
-            Operator::new(multiply, Left) | Operator::new(divide, Left),
-            Operator::new(power_c, Right),
-        ])
-    };
+    static ref PRATT_PARSER: PrattParser<Rule> = PrattParser::new()
+        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
+        .op(Op::infix(Rule::multiply, Assoc::Left) | Op::infix(Rule::divide, Assoc::Left))
+        .op(Op::infix(Rule::power_c, Assoc::Right))
+        .op(Op::postfix(Rule::EOI));
 }
 
 fn eval_func(expression: Pairs<Rule>) -> Func {
-    PREC_CLIMBER.climb(
-        expression,
-        |pair: Pair<Rule>| match pair.as_rule() {
+    PRATT_PARSER
+        .map_primary(|pair| match pair.as_rule() {
             Rule::negated_term => Func::Sub(
                 Box::new(Func::Num(0.0)),
                 Box::new(eval_func(pair.into_inner())),
@@ -320,8 +314,8 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
                 }
             }
             _ => unreachable!(),
-        },
-        |lhs: Func, op: Pair<Rule>, rhs: Func| match op.as_rule() {
+        })
+        .map_infix(|lhs, op, rhs| match op.as_rule() {
             Rule::add => lhs + rhs,
             Rule::subtract => lhs - rhs,
             Rule::multiply => lhs * rhs,
@@ -331,8 +325,12 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
                 _ => unreachable!(),
             }),
             _ => unreachable!(),
-        },
-    )
+        })
+        .map_postfix(|lhs, op| match op.as_rule() {
+            Rule::EOI => lhs,
+            _ => unreachable!(),
+        })
+        .parse(expression)
 }
 
 pub fn parse_func(func_str: &str) -> Result<Func, impl std::error::Error> {
