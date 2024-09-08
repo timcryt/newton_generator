@@ -42,7 +42,7 @@ pub fn get_palette(palette_string: &str) -> (Vec<Color>, Color) {
             _ => unreachable!(),
         })
         .map_infix(|lhs, op, rhs| match op.as_rule() {
-            Rule::simple_separator => (lhs.0.into_iter().chain(rhs.0.into_iter()).collect(), None),
+            Rule::simple_separator => (lhs.0.into_iter().chain(rhs.0).collect(), None),
                    Rule::full_separator => {
                        let (lf, fr, len) = (
                            lhs.0[lhs.0.len() - 1].0,

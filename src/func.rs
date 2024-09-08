@@ -70,7 +70,7 @@ double complex {}(double complex x) {{
             Func::Mul(a, b) => *a.clone() * b.clone().diff() + a.diff() * *b,
             Func::Div(a, b) => (a.clone().diff() * *b.clone() - *a * b.clone().diff()) / b.powi(2),
             Func::PowI(a, n) => a.clone().diff() * a.powi(n - 1) * n as f64,
-            Func::PowC(a, n) => a.clone().diff() * a.powc(n - 1.0) * n as f64,
+            Func::PowC(a, n) => a.clone().diff() * a.powc(n - 1.0) * n,
             Func::Sqrt(a) => a.clone().diff() / (a.sqrt() * 2.0),
             Func::Exp(a) => a.clone().diff() * a.exp(),
             Func::Ln(a) => a.clone().diff() / *a,
@@ -95,11 +95,11 @@ double complex {}(double complex x) {{
             Func::Num(a.powf(n))
         } else if n == 0.0 {
             Func::Num(1.0)
-        } else if (n - 1.0).abs() < std::f64::EPSILON {
+        } else if (n - 1.0).abs() < f64::EPSILON {
             self
-        } else if (n - 0.5).abs() < std::f64::EPSILON {
+        } else if (n - 0.5).abs() < f64::EPSILON {
             Func::Sqrt(Box::new(self))
-        } else if n.fract() == 0.0 && n < std::i32::MAX as f64 && n > std::i32::MIN as f64 {
+        } else if n.fract() == 0.0 && n < i32::MAX as f64 && n > i32::MIN as f64 {
             Func::PowI(Box::new(self), n as i32)
         } else {
             Func::PowC(Box::new(self), n)
@@ -222,13 +222,13 @@ impl std::ops::Mul<Func> for Func {
         } else if let Func::Num(n) = self {
             if n == 0.0 {
                 return Func::Num(0.0);
-            } else if (n - 1.0).abs() < std::f64::EPSILON {
+            } else if (n - 1.0).abs() < f64::EPSILON {
                 return other;
             }
         } else if let Func::Num(n) = other {
             if n == 0.0 {
                 return Func::Num(0.0);
-            } else if (n - 1.0).abs() < std::f64::EPSILON {
+            } else if (n - 1.0).abs() < f64::EPSILON {
                 return self;
             }
         }
@@ -255,7 +255,7 @@ impl std::ops::Div<Func> for Func {
                 return Func::Num(0.0);
             }
         } else if let Func::Num(n) = other {
-            if (n - 1.0).abs() < std::f64::EPSILON {
+            if (n - 1.0).abs() < f64::EPSILON {
                 return self;
             }
         }
@@ -333,9 +333,6 @@ fn eval_func(expression: Pairs<Rule>) -> Func {
         .parse(expression)
 }
 
-pub fn parse_func(func_str: &str) -> Result<Func, impl std::error::Error> {
-    match FuncParser::parse(Rule::function, func_str) {
-        Ok(f) => Ok(eval_func(f)),
-        Err(e) => Err(e),
-    }
+pub fn parse_func(func_str: &str) -> Result<Func, Box<dyn std::error::Error>> {
+    Ok(FuncParser::parse(Rule::function, func_str).map(eval_func)?)
 }
